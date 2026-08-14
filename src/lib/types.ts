@@ -1,5 +1,5 @@
-export type Member = { id: string; name: string; relation: string; image: string; generation: number; selected?: boolean }
-export type Memory = { id: string; title: string; year: string; image: string; count: number }
+export type Member = { id: string; name: string; relation: string; image: string; generation: number; selected?: boolean; isInLaw?: boolean }
+export type Memory = { id: string; title: string; year: string; uploadedAt: string; image: string; count: number }
 export type Event = { id: string; title: string; date: string; meta: string; image?: string }
 export type Activity = { id: string; type: string; title: string; author: string; time: string; images: string[] }
 export type Message = { id: string; role: 'user' | 'assistant'; content: string; source?: string }
@@ -27,12 +27,13 @@ export const members: Member[] = [
   { id: '6', name: 'Emma Joseph', relation: 'Sister', image: 'https://i.pravatar.cc/100?img=32', generation: 1 },
   { id: '7', name: 'Sam Joseph', relation: 'Son', image: 'https://i.pravatar.cc/100?img=15', generation: 2 },
   { id: '8', name: 'Ethan Joseph', relation: 'Son', image: 'https://i.pravatar.cc/100?img=56', generation: 2 },
+  { id: '9', name: 'Daniel Joseph', relation: 'Brother-in-law', image: 'https://i.pravatar.cc/100?img=68', generation: 1, isInLaw: true },
 ]
 export const memories: Memory[] = [
-  { id: 'm1', title: 'Summer Campfire', year: '2025', image: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1000&q=80', count: 24 },
-  { id: 'm2', title: 'Beach weekend', year: '2025', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80', count: 18 },
-  { id: 'm3', title: 'Our first home', year: '2024', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80', count: 12 },
-  { id: 'm4', title: 'Family reunion', year: '2024', image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1000&q=80', count: 31 },
+  { id: 'm1', title: 'Summer Campfire', year: '2025', uploadedAt: '2025-07-18', image: 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1000&q=80', count: 24 },
+  { id: 'm2', title: 'Beach weekend', year: '2025', uploadedAt: '2025-06-08', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80', count: 18 },
+  { id: 'm3', title: 'Our first home', year: '2024', uploadedAt: '2024-09-21', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80', count: 12 },
+  { id: 'm4', title: 'Family reunion', year: '2024', uploadedAt: '2024-12-14', image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1000&q=80', count: 31 },
 ]
 export const events: Event[] = [{ id: 'e1', title: "Samantha’s Birthday", date: 'Jun 23', meta: '20 days left' }, { id: 'e2', title: 'Family Reunion', date: 'Thursday, 19', meta: 'View' }]
 export const activities: Activity[] = [{ id: 'a1', type: 'Memory', title: 'added 103 photos on April 3, 2025 to memories', author: 'Samantha Michael', time: 'April 2025', images: [memories[0].image, memories[1].image] }, { id: 'a2', type: 'Event', title: 'created a new family event', author: 'Lisa Jane', time: 'Jun 23', images: [memories[2].image] }]

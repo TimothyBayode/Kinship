@@ -58,7 +58,7 @@ export default function HomePage() {
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 to="/auth"
-                className={`${linkButton} bg-primary text-primary-foreground shadow-[0_8px_20px_#66735A] hover:brightness-105`}
+                className={`${linkButton} bg-primary text-primary-foreground shadow-[0_3px_10px_rgba(23,21,29,0.08)] hover:brightness-105`}
               >
                 Preserve Your Family&apos;s Story <ArrowRight className="size-4" />
               </Link>

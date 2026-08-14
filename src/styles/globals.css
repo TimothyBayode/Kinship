@@ -11,7 +11,8 @@ button, a, input, textarea, select { font: inherit; }
 button:not(:disabled), a[href] { cursor: pointer; }
 button, a { transition: all .2s ease; }
 .grid-paper { background-image: linear-gradient(to right, #66735A 1px, transparent 1px), linear-gradient(to bottom, #66735A 1px, transparent 1px); background-size: 72px 72px; }
-.surface { background: rgba(255,255,255,.82); border: 1px solid var(--border); box-shadow: 0 18px 50px #66735A; }
+.dashboard-shell { min-height: 133.333vh; zoom: .75; }
+.surface { background: #fff; box-shadow: 0 4px 18px rgba(23,21,29,.05); }
 .auth-perspective { perspective: 1400px; }
 .auth-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.2,.75,.25,1); }
 .auth-flip-active { transform: rotateY(180deg); }

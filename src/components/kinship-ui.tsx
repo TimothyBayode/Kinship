@@ -60,7 +60,7 @@ export function Button({
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold ${primary ? "bg-primary text-primary-foreground shadow-[0_8px_20px_#66735A] hover:brightness-105" : "border bg-card text-foreground hover:bg-muted"} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold ${primary ? "bg-primary text-primary-foreground shadow-[0_3px_10px_rgba(23,21,29,0.08)] hover:brightness-105" : "border bg-card text-foreground hover:bg-muted"} ${className}`}
     >
       {children}
     </button>
