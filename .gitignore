@@ -9,6 +9,7 @@ __v0_jsx-dev-runtime.ts
 # Environment variables
 .env
 .env.*
+file.env
 !.env.example
 opencode.json
 
