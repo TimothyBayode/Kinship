@@ -1,6 +1,7 @@
 export type Member = { id: string; name: string; relation: string; image: string; generation: number; selected?: boolean; isInLaw?: boolean }
 export type Memory = { id: string; title: string; year: string; uploadedAt: string; image: string; count: number }
-export type Event = { id: string; title: string; date: string; meta: string; image?: string }
+export type Event = { id: string; title: string; date: string; meta: string; category: 'Birthday' | 'Gathering' | 'Anniversary'; month: string; day: string; location: string; attendees: number; image?: string }
+export type FamilyFile = { id: string; name: string; type: 'PDF' | 'Audio' | 'Spreadsheet' | 'Document'; size: string; updated: string; author: string }
 export type Activity = { id: string; type: string; title: string; author: string; time: string; images: string[] }
 export type Message = { id: string; role: 'user' | 'assistant'; content: string; source?: string }
 export type Conversation = { id: string; title: string; messages: Message[] }
@@ -35,7 +36,19 @@ export const memories: Memory[] = [
   { id: 'm3', title: 'Our first home', year: '2024', uploadedAt: '2024-09-21', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80', count: 12 },
   { id: 'm4', title: 'Family reunion', year: '2024', uploadedAt: '2024-12-14', image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1000&q=80', count: 31 },
 ]
-export const events: Event[] = [{ id: 'e1', title: "Samantha’s Birthday", date: 'Jun 23', meta: '20 days left' }, { id: 'e2', title: 'Family Reunion', date: 'Thursday, 19', meta: 'View' }]
+export const events: Event[] = [
+  { id: 'e1', title: "Samantha’s Birthday", date: 'September 23, 2026', meta: '39 days left', category: 'Birthday', month: 'SEP', day: '23', location: 'Joseph family home', attendees: 12, image: 'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=900&q=80' },
+  { id: 'e2', title: 'Family Reunion', date: 'October 17, 2026', meta: '63 days left', category: 'Gathering', month: 'OCT', day: '17', location: 'Greenwood Lakeside Park', attendees: 31, image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=900&q=80' },
+  { id: 'e3', title: 'Michael & Sarah’s Anniversary', date: 'November 8, 2026', meta: '85 days left', category: 'Anniversary', month: 'NOV', day: '08', location: 'The Garden Room', attendees: 8, image: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=900&q=80' },
+  { id: 'e4', title: 'Holiday Dinner', date: 'December 24, 2026', meta: '131 days left', category: 'Gathering', month: 'DEC', day: '24', location: 'Sarah and Michael’s home', attendees: 18, image: 'https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=900&q=80' },
+]
+export const familyFiles: FamilyFile[] = [
+  { id: 'f1', name: 'Joseph Family Tree.pdf', type: 'PDF', size: '2.4 MB', updated: 'Updated Apr 3, 2025', author: 'Timothy Bayode' },
+  { id: 'f2', name: 'Grandma’s Sunday Recipes.docx', type: 'Document', size: '840 KB', updated: 'Updated Mar 19, 2025', author: 'Sarah Joseph' },
+  { id: 'f3', name: 'Family Reunion Budget.xlsx', type: 'Spreadsheet', size: '1.1 MB', updated: 'Updated Feb 28, 2025', author: 'Samantha Michael' },
+  { id: 'f4', name: 'Voices from the Old House.mp3', type: 'Audio', size: '18.6 MB', updated: 'Updated Jan 12, 2025', author: 'Michael Joseph' },
+  { id: 'f5', name: 'Important Family Dates.pdf', type: 'PDF', size: '1.7 MB', updated: 'Updated Dec 8, 2024', author: 'Timothy Bayode' },
+]
 export const activities: Activity[] = [{ id: 'a1', type: 'Memory', title: 'added 103 photos on April 3, 2025 to memories', author: 'Samantha Michael', time: 'April 2025', images: [memories[0].image, memories[1].image] }, { id: 'a2', type: 'Event', title: 'created a new family event', author: 'Lisa Jane', time: 'Jun 23', images: [memories[2].image] }]
 export const family: Family = { name: "John Michael’s Family", members }
 export const conversations: Conversation[] = [{ id: 'c1', title: 'Family recipes', messages: [{ id: 'q1', role: 'user', content: 'What recipes have we saved from grandma?' }, { id: 'a1', role: 'assistant', content: 'I found three recipes connected to Grandma Joseph: her Sunday tomato sauce, lemon cake, and the handwritten holiday stuffing recipe.', source: 'Memories · 3 sources' }] }]

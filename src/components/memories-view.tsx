@@ -9,6 +9,13 @@ import {
   type UploadStage,
 } from "@/lib/types";
 
+const albumStackImages = [
+  "https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=700&q=80",
+  "https://images.unsplash.com/photo-1472162072942-cd5147eb3902?auto=format&fit=crop&w=700&q=80",
+  "https://images.unsplash.com/photo-1543332164-6e82f355badc?auto=format&fit=crop&w=700&q=80",
+  "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=700&q=80",
+];
+
 export function MemoriesView() {
   const [filter, setFilter] = useState("Immediate Family Members");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -61,8 +68,9 @@ export function MemoriesView() {
 
   return (
     <section>
-      <SectionTitle title="Memories">
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-12">
+        <SectionTitle title="Memories">
+          <div className="flex flex-wrap gap-2">
           <div className="relative" ref={filterMenuRef}>
             <button
               type="button"
@@ -106,25 +114,38 @@ export function MemoriesView() {
             <Plus className="size-4" />
             {stage === "idle" ? "New Memory" : stageLabels[stage]}
           </Button>
-        </div>
-      </SectionTitle>
-      <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          </div>
+        </SectionTitle>
+      </div>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((memory) => (
           <article
             key={memory.id}
-            className="surface group overflow-hidden rounded-3xl"
+            className="surface group rounded-3xl p-3"
           >
-            <div className="relative">
+            <div className="relative mx-auto h-64 max-w-[90%] px-6 pb-3 pt-5">
+              <img
+                src={albumStackImages[memory.id === "m1" || memory.id === "m3" ? 0 : 2]}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-x-8 bottom-3 top-5 h-[calc(100%-1.25rem)] w-[calc(100%-4rem)] origin-bottom-left -rotate-7 rounded-xl border-4 border-white object-cover shadow-[0_3px_10px_rgba(23,21,29,0.08)]"
+              />
+              <img
+                src={albumStackImages[memory.id === "m1" || memory.id === "m3" ? 1 : 3]}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-x-8 bottom-3 top-5 h-[calc(100%-1.25rem)] w-[calc(100%-4rem)] origin-bottom-right rotate-7 rounded-xl border-4 border-white object-cover shadow-[0_3px_10px_rgba(23,21,29,0.08)]"
+              />
               <img
                 src={memory.image}
                 alt={memory.title}
-                className="h-72 w-full object-cover transition duration-500 group-hover:scale-105"
+                className="relative z-10 h-full w-full rounded-xl border-4 border-white object-cover shadow-[0_3px_10px_rgba(23,21,29,0.08)] transition duration-500 group-hover:scale-[1.02]"
               />
-              <span className="absolute bottom-4 left-4 rounded-full bg-card/90 px-3 py-1 text-xs font-medium">
+              <span className="absolute bottom-6 left-9 z-20 rounded-full bg-white/95 px-3 py-1 text-xs font-medium">
                 {memory.count} memories
               </span>
             </div>
-            <div className="p-5">
+            <div className="px-2 pb-2 pt-3">
               <p className="text-xs uppercase tracking-[.16em] text-muted-foreground">
                 {memory.year}
               </p>

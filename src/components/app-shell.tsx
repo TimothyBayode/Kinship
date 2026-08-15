@@ -190,7 +190,7 @@ export function AppShell() {
         </div>
       )}
 
-      <main className="mx-auto mt-4 max-w-[1500px] px-4 py-8 md:px-8 lg:px-12">
+      <main className={pathname === "/ask" ? "mt-4 bg-[#f5f5f2]" : "mx-auto mt-4 max-w-[1500px] px-4 py-8 md:px-8 lg:px-12"}>
         <Outlet />
       </main>
     </div>
