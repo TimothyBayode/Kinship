@@ -7,10 +7,14 @@ __v0_jsx-dev-runtime.ts
 .vercel/
 
 # Environment variables
-.env*.local
+.env
+.env.*
+!.env.example
 opencode.json
 
 # Common ignores
 node_modules
 .next/
+server-dist/
+.hydradb/
 .DS_Store
