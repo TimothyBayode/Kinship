@@ -11,6 +11,7 @@ set -euo pipefail
 if [[ -z "${APP_ORIGIN:-}" && -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
   export APP_ORIGIN="https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 fi
+: "${APP_ORIGIN:?APP_ORIGIN could not be determined}"
 
 mkdir -p .codespaces
 umask 077
@@ -18,3 +19,4 @@ printf '%s\n' "$HYDRADB_AUTH_TOKEN" > .codespaces/hydradb-token
 
 docker compose up -d --build
 docker compose ps
+printf 'Frontend origin: %s\n' "$APP_ORIGIN"
