@@ -33,7 +33,16 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   app.addHook("onRequest", async (request, reply) => {
     if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
     const origin = request.headers.origin;
-    if (origin && origin !== config.APP_ORIGIN) return reply.code(403).send({ error: { code: "ORIGIN_NOT_ALLOWED", message: "Request origin is not allowed" } });
+    if (origin && origin !== config.APP_ORIGIN) {
+      request.log.warn({ receivedOrigin: origin, expectedOrigin: config.APP_ORIGIN }, "request origin is not allowed");
+      return reply.code(403).send({
+        error: {
+          code: "ORIGIN_NOT_ALLOWED",
+          message: "Request origin is not allowed",
+          ...(config.NODE_ENV === "development" ? { receivedOrigin: origin, expectedOrigin: config.APP_ORIGIN } : {}),
+        },
+      });
+    }
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -43,7 +52,12 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (message === "EMAIL_EXISTS") return reply.code(409).send({ error: { code: "EMAIL_EXISTS", message: "An account with this email already exists" } });
     if ((error as { code?: string }).code === "FST_ERR_CTP_INVALID_MEDIA_TYPE") return reply.code(415).send({ error: { code: "INVALID_CONTENT_TYPE", message: "Use application/json" } });
     app.log.error(error);
-    return reply.code(500).send({ error: { code: "INTERNAL_ERROR", message: "The request could not be completed" } });
+    return reply.code(500).send({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: config.NODE_ENV === "development" && error instanceof Error ? error.message : "The request could not be completed",
+      },
+    });
   });
 
   app.get("/api/health", async () => {
