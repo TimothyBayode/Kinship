@@ -130,20 +130,3 @@ export const conversationService = {
     return conversations;
   },
 };
-
-export const aiService = {
-  async generateResponse({ message, context }: { conversationId: string; familyId: string; message: string; context: string }) {
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    if (message.toLowerCase().includes("error")) throw new Error("Mock request failed");
-    const topic = message.toLowerCase();
-    const selectedSources = topic.includes("recipe") ? sources.recipes : topic.includes("farm") ? sources.farm : sources.joe;
-    return {
-      content: context === "Entire Bayode Family"
-        ? "I found several connected records in the family archive. Together, they show how this story was remembered by different relatives over time. The written material gives the dates and places, while the recordings preserve the details people recalled later."
-        : `I searched the archive with ${context} as the focus. The strongest records are a preserved document and an oral-history recording, which agree on the main events while adding different personal details.`,
-      sources: selectedSources,
-      context,
-      createdAt: new Date().toISOString(),
-    };
-  },
-};

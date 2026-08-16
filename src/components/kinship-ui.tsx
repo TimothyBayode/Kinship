@@ -49,18 +49,21 @@ export function Button({
   className = "",
   onClick,
   type = "button",
+  disabled = false,
 }: {
   children: React.ReactNode;
   primary?: boolean;
   className?: string;
   onClick?: () => void;
   type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold ${primary ? "bg-primary text-primary-foreground shadow-[0_3px_10px_rgba(23,21,29,0.08)] hover:brightness-105" : "border bg-card text-foreground hover:bg-muted"} ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${primary ? "bg-primary text-primary-foreground shadow-[0_3px_10px_rgba(23,21,29,0.08)] hover:brightness-105" : "border bg-card text-foreground hover:bg-muted"} ${className}`}
     >
       {children}
     </button>

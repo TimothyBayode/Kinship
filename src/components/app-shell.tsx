@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import {
   Bell,
@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 
 import { Avatar, Logo } from "@/components/kinship-ui";
-import { user } from "@/lib/types";
+import { authApi, type ApiUser } from "@/lib/api";
+import { user as demoUser } from "@/lib/types";
 
 const nav = [
   { label: "Activity", icon: LayoutDashboard, href: "/activity" },
@@ -30,8 +31,18 @@ const nav = [
 export function AppShell() {
   const [mobile, setMobile] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    authApi.me()
+      .then(setUser)
+      .catch(() => navigate("/auth", { replace: true }))
+      .finally(() => setCheckingSession(false));
+  }, [navigate]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -52,6 +63,17 @@ export function AppShell() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [accountOpen]);
+
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      navigate("/auth", { replace: true });
+    }
+  };
+
+  if (checkingSession) return <div className="grid min-h-screen place-items-center bg-[#f5f5f2] text-sm text-muted-foreground">Loading Kinship...</div>;
+  if (!user) return null;
 
   return (
     <div className="dashboard-shell min-h-screen bg-[#f5f5f2]">
@@ -100,7 +122,7 @@ export function AppShell() {
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
               >
-                <Avatar src={user.avatar} name={user.name} />
+                <Avatar src={demoUser.avatar} name={user.name} />
                 <span className="hidden text-sm font-semibold sm:block">
                   {user.name}
                 </span>
@@ -131,15 +153,15 @@ export function AppShell() {
                     <Settings className="size-4" />
                     Account Settings
                   </button>
-                  <Link
-                    to="/auth"
+                  <button
+                    type="button"
                     className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-destructive hover:bg-destructive/5"
-                    onClick={() => setAccountOpen(false)}
+                    onClick={logout}
                     role="menuitem"
                   >
                     <LogOut className="size-4" />
                     Logout
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>

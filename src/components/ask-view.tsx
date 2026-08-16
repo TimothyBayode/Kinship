@@ -19,12 +19,12 @@ import {
 } from "lucide-react";
 
 import {
-  aiService,
   conversationService,
   type AskConversation,
   type AskMessage,
   type AskSource,
 } from "@/lib/ask-kinship";
+import { aiApi, familyApi, type ApiFamily } from "@/lib/api";
 
 const suggestions = [
   { label: "Grandpa Joe", question: "What was Grandpa Joe like during the war?", icon: UserRound },
@@ -40,10 +40,13 @@ export function AskView() {
   const [loading, setLoading] = useState(false);
   const [failedQuestion, setFailedQuestion] = useState("");
   const [source, setSource] = useState<AskSource | null>(null);
+  const [families, setFamilies] = useState<ApiFamily[]>([]);
+  const [familyError, setFamilyError] = useState("");
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
 
   useEffect(() => {
     conversationService.list().then(setConversations);
+    familyApi.list().then(setFamilies).catch((error: Error) => setFamilyError(error.message));
   }, []);
 
   const startNew = () => {
@@ -74,18 +77,28 @@ export function AskView() {
     setFailedQuestion("");
 
     try {
-      const response = await aiService.generateResponse({ conversationId: pending.id, familyId: "bayode-family", message: question, context: pending.context });
+      const family = families[0];
+      if (!family) throw new Error("Create a family archive before asking Kinship.");
+      const response = await aiApi.chat(family.id, question);
+      const createdAt = new Date().toISOString();
       const complete: AskConversation = {
         ...pending,
-        updatedAt: response.createdAt,
-        messages: [...pending.messages, { id: crypto.randomUUID(), role: "assistant", content: response.content, sources: response.sources, createdAt: response.createdAt }],
+        updatedAt: createdAt,
+        context: family.name,
+        messages: [...pending.messages, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: response.content,
+          sources: response.sources.map((item) => ({ id: item.sourceId, title: item.title, detail: "Family archive", type: "document" as const, excerpt: item.content })),
+          createdAt,
+        }],
       };
       setConversations((current) => [complete, ...current.filter((item) => item.id !== complete.id)]);
       await conversationService.update(complete);
-    } catch {
+    } catch (error) {
       const failed: AskConversation = {
         ...pending,
-        messages: [...pending.messages, { id: crypto.randomUUID(), role: "assistant", content: "Kinship couldn't answer that right now. Please try again.", createdAt: new Date().toISOString(), error: true }],
+        messages: [...pending.messages, { id: crypto.randomUUID(), role: "assistant", content: (error as Error).message || "Kinship couldn't answer that right now. Please try again.", createdAt: new Date().toISOString(), error: true }],
       };
       setFailedQuestion(question);
       setConversations((current) => [failed, ...current.filter((item) => item.id !== failed.id)]);
@@ -104,6 +117,7 @@ export function AskView() {
   return (
     <div className="flex h-[calc(133.333vh-80px)] min-h-[680px] overflow-hidden bg-[#f5f5f2] text-[#242424]">
       <main className="relative flex min-w-0 flex-1 flex-col bg-[#f5f5f2]">
+        {familyError && <p role="alert" className="px-5 pt-3 text-sm text-destructive sm:px-8 lg:px-10">{familyError}</p>}
         <div className="flex min-h-16 items-center justify-between px-5 py-3 sm:px-8 lg:px-10">
           <div className="min-w-0">
             {activeConversation && <ContextBadge context={activeConversation.context} onRemove={removeContext} />}

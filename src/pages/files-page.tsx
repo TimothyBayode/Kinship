@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Filter, Plus } from "lucide-react";
 
 import { Button, SectionTitle } from "@/components/kinship-ui";
-import { familyFiles } from "@/lib/types";
+import { uploadApi } from "@/lib/api";
+import { familyFiles, type FamilyFile } from "@/lib/types";
 
 const filters = ["All Files", "Documents", "Audio", "Spreadsheets", "PDFs"] as const;
 type FileFilter = (typeof filters)[number];
@@ -24,8 +25,12 @@ const fileBandColors = {
 export default function FilesPage() {
   const [filter, setFilter] = useState<FileFilter>("All Files");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<FamilyFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const filterMenuRef = useRef<HTMLDivElement>(null);
-  const visibleFiles = familyFiles.filter((file) => {
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const visibleFiles = [...uploadedFiles, ...familyFiles].filter((file) => {
     if (filter === "Documents") return file.type === "Document";
     if (filter === "Audio") return file.type === "Audio";
     if (filter === "Spreadsheets") return file.type === "Spreadsheet";
@@ -48,6 +53,26 @@ export default function FilesPage() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [filterOpen]);
+
+  const upload = async (file: File) => {
+    try {
+      setUploading(true);
+      setUploadError("");
+      await uploadApi.upload(file);
+      setUploadedFiles((current) => [{
+        id: crypto.randomUUID(),
+        name: file.name,
+        type: fileType(file),
+        size: formatFileSize(file.size),
+        updated: "Uploaded just now",
+        author: "You",
+      }, ...current]);
+    } catch (error) {
+      setUploadError((error as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <section>
@@ -86,12 +111,23 @@ export default function FilesPage() {
                 </div>
               )}
             </div>
-            <Button primary>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void upload(file);
+                event.target.value = "";
+              }}
+            />
+            <Button primary disabled={uploading} onClick={() => uploadInputRef.current?.click()}>
               <Plus className="size-4" />
-              Upload New File
+              {uploading ? "Uploading..." : "Upload New File"}
             </Button>
           </div>
         </SectionTitle>
+        {uploadError && <p role="alert" className="mt-3 text-sm text-destructive">{uploadError}</p>}
       </div>
 
       <div className="surface overflow-hidden rounded-2xl">
@@ -122,6 +158,17 @@ export default function FilesPage() {
       </div>
     </section>
   );
+}
+
+function fileType(file: File): FamilyFile["type"] {
+  if (file.type === "application/pdf") return "PDF";
+  if (file.type.startsWith("audio/")) return "Audio";
+  if (/spreadsheet|excel|csv/.test(file.type)) return "Spreadsheet";
+  return "Document";
+}
+
+function formatFileSize(bytes: number) {
+  return bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1_000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
 
 function FileTypeIcon({ type }: { type: keyof typeof fileExtensions }) {

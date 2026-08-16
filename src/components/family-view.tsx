@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Avatar, Button, SectionTitle } from "@/components/kinship-ui";
-import { family, familyService, members } from "@/lib/types";
+import { familyApi, type ApiFamily } from "@/lib/api";
+import { family, members } from "@/lib/types";
 
 const memberPositions = [
   "left-[360px] top-0",
@@ -20,8 +21,11 @@ export function FamilyView() {
   const [query, setQuery] = useState("");
   const [zoom, setZoom] = useState(1);
   const [invite, setInvite] = useState(false);
-  const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
+  const [families, setFamilies] = useState<ApiFamily[]>([]);
+  const [familyName, setFamilyName] = useState("");
+  const [loadingFamilies, setLoadingFamilies] = useState(true);
+  const activeFamily = families[0];
   const filtered = useMemo(
     () =>
       members.filter((member) =>
@@ -30,11 +34,20 @@ export function FamilyView() {
     [query],
   );
 
-  const send = async () => {
+  useEffect(() => {
+    familyApi.list()
+      .then(setFamilies)
+      .catch((error: Error) => setStatus(error.message))
+      .finally(() => setLoadingFamilies(false));
+  }, []);
+
+  const createFamily = async () => {
     try {
-      await familyService.invite(email);
-      setStatus("Invitation sent");
-      setEmail("");
+      setStatus("");
+      const created = await familyApi.create(familyName);
+      setFamilies((current) => [{ ...created, role: "owner" }, ...current]);
+      setFamilyName("");
+      setInvite(false);
     } catch (error) {
       setStatus((error as Error).message);
     }
@@ -42,7 +55,7 @@ export function FamilyView() {
 
   return (
     <section>
-      <SectionTitle title={family.name}>
+      <SectionTitle title={activeFamily?.name ?? family.name}>
         <div className="flex flex-wrap gap-2">
           <div className="surface flex items-center gap-2 rounded-md px-4 py-3 text-muted-foreground">
             <Search className="size-4" />
@@ -60,9 +73,9 @@ export function FamilyView() {
           <Button className="border-0" onClick={() => setZoom(Math.min(1.25, zoom + 0.1))}>
             <ZoomIn className="size-4" />
           </Button>
-          <Button primary onClick={() => setInvite(true)}>
+          <Button primary onClick={() => { setStatus(""); setInvite(true); }}>
             <Plus className="size-4" />
-            Add Relative
+            {activeFamily ? "New Family" : "Create Family"}
           </Button>
         </div>
       </SectionTitle>
@@ -131,31 +144,30 @@ export function FamilyView() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">New relationship</h2>
+              <h2 className="text-2xl font-semibold">New family archive</h2>
               <button className="rounded-md" onClick={() => setInvite(false)} aria-label="Close">
                 <X />
               </button>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Invite someone to join your family archive.
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Create a family archive backed by HydraDB.</p>
             <label className="mt-7 block text-sm font-medium">
-              Email
+              Family name
               <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                value={familyName}
+                onChange={(event) => setFamilyName(event.target.value)}
                 className="mt-2 w-full rounded-xl border bg-card px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
-                placeholder="hey@example.com"
+                placeholder="Bayode Family"
               />
             </label>
             {status && <p className="mt-3 text-sm text-primary">{status}</p>}
-            <Button primary onClick={send} className="mt-6 w-full">
+            <Button primary onClick={createFamily} disabled={familyName.trim().length < 2} className="mt-6 w-full">
               <Plus className="size-4" />
-              Add Relative
+              Create Family
             </Button>
           </div>
         </div>
       )}
+      {loadingFamilies && <p className="mt-4 text-sm text-muted-foreground">Loading family archive...</p>}
     </section>
   );
 }

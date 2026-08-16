@@ -18,7 +18,6 @@ export const imageRefs = {
 }
 
 export const user: User = { name: 'Timothy Bayode', email: 'timothybayode76@gmail.com', avatar: 'https://i.pravatar.cc/100?img=12' }
-const demoPassword = 'Admin123'
 export const members: Member[] = [
   { id: '1', name: 'Michael Joseph', relation: 'Father', image: 'https://i.pravatar.cc/100?img=11', generation: 0 },
   { id: '2', name: 'Sarah Joseph', relation: 'Mother', image: 'https://i.pravatar.cc/100?img=47', generation: 0 },
@@ -54,15 +53,4 @@ export const family: Family = { name: "John Michael’s Family", members }
 export const conversations: Conversation[] = [{ id: 'c1', title: 'Family recipes', messages: [{ id: 'q1', role: 'user', content: 'What recipes have we saved from grandma?' }, { id: 'a1', role: 'assistant', content: 'I found three recipes connected to Grandma Joseph: her Sunday tomato sauce, lemon cake, and the handwritten holiday stuffing recipe.', source: 'Memories · 3 sources' }] }]
 
 export const stageLabels: Record<UploadStage, string> = { idle: 'Choose files', uploading: 'Uploading', processing: 'Processing', transcribing: 'Transcribing', extracting: 'Extracting details', complete: 'Complete' }
-export const delay = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms))
-
-export const authService = {
-  async signIn(email: string, password: string) { await delay(); if (email.trim().toLowerCase() !== user.email || password !== demoPassword) throw new Error('Incorrect email or password.'); return user },
-  async signUp(name: string, email: string, password: string) { await delay(); if (!name.trim() || !email.includes('@') || password.length < 8) throw new Error('Enter your name, a valid email, and an 8-character password.'); return { ...user, name, email } },
-}
-export const familyService = { async getFamily() { await delay(100); return family }, async invite(email: string) { await delay(); if (!email.includes('@')) throw new Error('Enter a valid email address.'); return true } }
-export const memoryService = { async getMemories() { await delay(100); return memories } }
-export const chatService = { async ask(question: string) { await delay(700); return { id: crypto.randomUUID(), role: 'assistant' as const, content: `I searched your private family archive for “${question}”. I found a few connected memories and can help you explore them further.`, source: 'Kinship archive · 4 sources' } } }
-export const storageService = { async upload(onStage: (stage: UploadStage) => void) { for (const stage of ['uploading', 'processing', 'transcribing', 'extracting', 'complete'] as UploadStage[]) { onStage(stage); await delay(450) } } }
-
 export function initials(name: string) { return name.split(' ').map(part => part[0]).join('').slice(0, 2) }

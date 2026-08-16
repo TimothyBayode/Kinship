@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, ImagePlus, Plus } from "lucide-react";
 
 import { Button, SectionTitle } from "@/components/kinship-ui";
+import { uploadApi } from "@/lib/api";
 import {
   memories,
   stageLabels,
-  storageService,
   type UploadStage,
 } from "@/lib/types";
 
@@ -25,13 +25,34 @@ export function MemoriesView() {
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [stage, setStage] = useState<UploadStage>("idle");
+  const [uploadedMemories, setUploadedMemories] = useState<typeof memories>([]);
+  const [uploadError, setUploadError] = useState("");
   const filterMenuRef = useRef<HTMLDivElement>(null);
-  const visible = memories.filter((memory) =>
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const visible = [...uploadedMemories, ...memories].filter((memory) =>
     filter === "Pick Date" && selectedDate
       ? memory.uploadedAt === selectedDate
       : true,
   );
-  const upload = () => storageService.upload(setStage);
+  const upload = async (file: File) => {
+    try {
+      setUploadError("");
+      setStage("uploading");
+      const image = await uploadApi.upload(file);
+      setUploadedMemories((current) => [{
+        id: crypto.randomUUID(),
+        title: file.name.replace(/\.[^.]+$/, ""),
+        year: String(new Date().getFullYear()),
+        uploadedAt: new Date().toISOString().slice(0, 10),
+        image,
+        count: 1,
+      }, ...current]);
+      setStage("complete");
+    } catch (error) {
+      setUploadError((error as Error).message);
+      setStage("idle");
+    }
+  };
   const filterLabel =
     filter === "Pick Date" && selectedDate
       ? new Intl.DateTimeFormat("en", {
@@ -110,12 +131,24 @@ export function MemoriesView() {
               </div>
             )}
           </div>
-          <Button primary onClick={upload}>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void upload(file);
+              event.target.value = "";
+            }}
+          />
+          <Button primary disabled={stage === "uploading"} onClick={() => uploadInputRef.current?.click()}>
             <Plus className="size-4" />
             {stage === "idle" ? "New Memory" : stageLabels[stage]}
           </Button>
           </div>
         </SectionTitle>
+        {uploadError && <p role="alert" className="mt-3 text-sm text-destructive">{uploadError}</p>}
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((memory) => (
@@ -170,7 +203,7 @@ export function MemoriesView() {
             <p className="mt-1 text-sm text-muted-foreground">
               Upload photos, audio, or notes to your family archive.
             </p>
-            <Button onClick={upload} className="mt-4">
+            <Button onClick={() => uploadInputRef.current?.click()} className="mt-4">
               <Plus className="size-4" />
               {stage === "idle" ? "New Memory" : stageLabels[stage]}
             </Button>

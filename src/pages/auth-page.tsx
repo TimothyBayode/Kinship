@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
 import { Button, Logo } from "@/components/kinship-ui";
-import { authService, imageRefs } from "@/lib/types";
+import { authApi } from "@/lib/api";
+import { imageRefs } from "@/lib/types";
 
 const inputClass =
   "mt-1.5 w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-sm outline-none transition-shadow placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -34,17 +35,28 @@ function AuthImage() {
 
 export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeMode, setActiveMode] = useState(mode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState("");
   const signup = activeMode === "signup";
 
   useEffect(() => {
     setActiveMode(mode);
   }, [mode]);
+
+  useEffect(() => {
+    const token = searchParams.get("verify");
+    if (!token) return;
+    authApi.verifyEmail(token)
+      .then(() => setNotice("Email verified. You can sign in now."))
+      .catch((exception: Error) => setError(exception.message));
+  }, [searchParams]);
 
   function switchMode(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
@@ -57,11 +69,14 @@ export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
     event.preventDefault();
     try {
       setError("");
-      if (signup) await authService.signUp(name, email, password);
-      else await authService.signIn(email, password);
+      setSubmitting(true);
+      if (signup) await authApi.signUp(name, email, password);
+      else await authApi.signIn(email, password);
       navigate("/activity");
     } catch (exception) {
       setError((exception as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -123,9 +138,10 @@ export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
               </button>
             </span>
           </label>
+          {notice && <p role="status" className="text-sm text-primary">{notice}</p>}
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button primary type="submit" className="w-full !py-3">
-            {signup ? "Create account" : "Sign in"}
+          <Button primary type="submit" disabled={submitting} className="w-full !py-3">
+            {submitting ? "Please wait..." : signup ? "Create account" : "Sign in"}
           </Button>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className="h-px flex-1 bg-border" />Or<span className="h-px flex-1 bg-border" />
