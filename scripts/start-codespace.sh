@@ -17,6 +17,6 @@ mkdir -p .codespaces
 umask 077
 printf '%s\n' "$HYDRADB_AUTH_TOKEN" > .codespaces/hydradb-token
 
-docker compose up -d --build
+docker compose up -d --build --force-recreate
 docker compose ps
 printf 'Frontend origin: %s\n' "$APP_ORIGIN"
