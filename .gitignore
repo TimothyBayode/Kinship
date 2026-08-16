@@ -18,4 +18,5 @@ node_modules
 .next/
 server-dist/
 .hydradb/
+.codespaces/
 .DS_Store

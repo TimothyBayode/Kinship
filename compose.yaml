@@ -1,0 +1,63 @@
+services:
+  hydradb:
+    image: ghcr.io/hydra-db/hydradb:latest
+    restart: unless-stopped
+    expose:
+      - "8443"
+      - "7687"
+      - "9090"
+    environment:
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER:-aws}
+      AWS_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID is required}
+      AWS_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY is required}
+      AWS_REGION: ${AWS_REGION:-auto}
+      AWS_BUCKET: ${R2_BUCKET:?R2_BUCKET is required}
+      AWS_ENDPOINT: ${R2_ENDPOINT:?R2_ENDPOINT is required}
+      AWS_VIRTUAL_HOSTED_STYLE_REQUEST: "false"
+      GRAPH_NAMESPACE: ${HYDRADB_NAMESPACE:-kinship}
+      GRAPH_ID: ${HYDRADB_GRAPH_ID:-kinship}
+      GRAPH_CELL_ID: ${HYDRADB_CELL_ID:-cell-0}
+      GRAPH_CELLS: ${HYDRADB_CELL_ID:-cell-0}
+      GRAPH_NODE_ID: node-0
+      GRAPH_BOLT_NODE_ADDRESSES: node-0=hydradb:7687
+      GRAPH_ADVERTISED_BOLT_ADDR: hydradb:7687
+      GRAPH_DATA_PATH: kinship/graph
+      GRAPH_DATA_CACHE_DIR: /data/cache
+      GRAPH_AUTH_TOKEN_FILE: /run/secrets/hydradb-token
+      GRAPH_ALLOW_PLAINTEXT: "true"
+      RUST_MIN_STACK: "33554432"
+    volumes:
+      - hydradb-cache:/data/cache
+      - ./.codespaces/hydradb-token:/run/secrets/hydradb-token:ro
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      - hydradb
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: "3001"
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER:?PASSWORD_PEPPER is required}
+      DATA_PROVIDER: hydradb
+      HYDRADB_HTTP_URL: http://hydradb:8443
+      HYDRADB_AUTH_TOKEN: ${HYDRADB_AUTH_TOKEN:?HYDRADB_AUTH_TOKEN is required}
+      HYDRADB_NAMESPACE: ${HYDRADB_NAMESPACE:-kinship}
+      HYDRADB_GRAPH_ID: ${HYDRADB_GRAPH_ID:-kinship}
+      HYDRADB_CELL_ID: ${HYDRADB_CELL_ID:-cell-0}
+      HYDRADB_CONSISTENCY: ${HYDRADB_CONSISTENCY:-causal}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_UPLOAD_PRESET: ${CLOUDINARY_UPLOAD_PRESET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Kinship <noreply@example.com>}
+
+volumes:
+  hydradb-cache:
