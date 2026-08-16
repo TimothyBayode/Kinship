@@ -8,7 +8,7 @@ set -euo pipefail
 : "${R2_BUCKET:?R2_BUCKET must be set}"
 : "${R2_ENDPOINT:?R2_ENDPOINT must be set}"
 
-if [[ -z "${APP_ORIGIN:-}" && -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
   export APP_ORIGIN="https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 fi
 : "${APP_ORIGIN:?APP_ORIGIN could not be determined}"
