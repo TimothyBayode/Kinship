@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -120,6 +120,21 @@ export class HydraDbRepository implements KinshipRepository {
     return row ? row as Invitation : null;
   }
 
+  async createMemoryAlbum(album: MemoryAlbum) {
+    const { photos: photoUrls, ...properties } = album;
+    await this.upsertVertex("Memory", { ...properties, photosJson: JSON.stringify(photoUrls) });
+    const photos = photoUrls.map((url) => { const vertexId = randomVertexId(); return { vertex: vertexId, vertexId, appId: crypto.randomUUID(), url, familyId: album.familyId, createdAt: album.createdAt }; });
+    await this.client.query("UNWIND $rows AS row MERGE (p {id: row.vertex}) SET p:Photo, p.vertexId = row.vertexId, p.appId = row.appId, p.url = row.url, p.familyId = row.familyId, p.createdAt = row.createdAt", { rows: photos });
+    await this.client.query("UNWIND $rows AS row MATCH (m:Memory {id: row.memoryVertex}), (p:Photo {id: row.photoVertex}) CREATE (m)-[:CONTAINS {id: row.edgeId, familyId: row.familyId}]->(p)", { rows: photos.map((photo) => ({ memoryVertex: album.vertexId, photoVertex: photo.vertexId, edgeId: randomVertexId(), familyId: album.familyId })) });
+    return album;
+  }
+
+  async listMemoryAlbums(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    const rows = await this.client.query("MATCH (m:Memory) WHERE m.familyId = $familyId RETURN m.appId AS id, m.vertexId AS vertexId, m.familyId AS familyId, m.title AS title, m.description AS description, m.memoryDate AS memoryDate, m.createdBy AS createdBy, m.createdAt AS createdAt, m.photosJson AS photosJson ORDER BY m.memoryDate DESC", { familyId });
+    return rows.map((row) => ({ ...row, photos: parsePhotos(row.photosJson) })) as MemoryAlbum[];
+  }
+
   async listSourceChunks(familyId: string, limit: number) {
     const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });
     return rows as SourceChunk[];
@@ -133,6 +148,11 @@ export class HydraDbRepository implements KinshipRepository {
     const [row] = await this.client.query(query, parameters);
     return row ? row as User : null;
   }
+}
+
+function parsePhotos(value: unknown) {
+  if (typeof value !== "string") return [];
+  try { return JSON.parse(value) as string[]; } catch { return []; }
 }
 
 export function randomVertexId() {

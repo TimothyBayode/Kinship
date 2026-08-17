@@ -66,6 +66,18 @@ export type SourceChunk = {
   createdAt: string;
 };
 
+export type MemoryAlbum = {
+  id: string;
+  vertexId: number;
+  familyId: string;
+  title: string;
+  description: string;
+  memoryDate: string;
+  createdBy: string;
+  createdAt: string;
+  photos: string[];
+};
+
 export type CreateUser = Pick<User, "id" | "vertexId" | "email" | "name" | "passwordHash" | "createdAt">;
 
 export interface KinshipRepository {
@@ -90,5 +102,7 @@ export interface KinshipRepository {
   setMemberRelationship(userId: string, familyId: string, relativeUserId: string, relationship: string): Promise<void>;
   createInvitation(invitation: Invitation): Promise<Invitation>;
   findInvitationByCode(code: string): Promise<Invitation | null>;
+  createMemoryAlbum(album: MemoryAlbum): Promise<MemoryAlbum>;
+  listMemoryAlbums(userId: string, familyId: string): Promise<MemoryAlbum[]>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

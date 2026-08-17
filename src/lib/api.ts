@@ -40,6 +40,17 @@ export type ApiInvitation = {
   expiresAt: string;
 };
 
+export type ApiMemory = {
+  id: string;
+  familyId: string;
+  title: string;
+  description: string;
+  memoryDate: string;
+  createdBy: string;
+  createdAt: string;
+  photos: string[];
+};
+
 type ApiErrorBody = { error?: { message?: string } };
 
 let accessToken: string | null = null;
@@ -126,6 +137,15 @@ export const familyApi = {
 export const profileApi = {
   async update(profile: { gender: string; phone: string; birthday: string }) {
     return (await request<{ user: ApiUser }>("/api/profile", { method: "PATCH", body: JSON.stringify(profile) })).user;
+  },
+};
+
+export const memoryApi = {
+  async list(familyId: string) {
+    return (await request<{ memories: ApiMemory[] }>(`/api/memories?familyId=${encodeURIComponent(familyId)}`)).memories;
+  },
+  async create(input: { familyId: string; title: string; description: string; memoryDate: string; photos: string[] }) {
+    return (await request<{ memory: ApiMemory }>("/api/memories", { method: "POST", body: JSON.stringify(input) })).memory;
   },
 };
 

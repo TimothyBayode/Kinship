@@ -22,6 +22,7 @@ const profileSchema = z.object({ gender: z.enum(["female", "male", "non-binary",
 const invitationSchema = z.object({ familyId: z.uuid(), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
 const inviteCodeSchema = z.object({ code: z.string().trim().min(6).max(20).transform((value) => value.toUpperCase()) });
 const relationshipSchema = z.object({ relationship: z.string().trim().min(2).max(60) });
+const memorySchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), memoryDate: z.iso.date(), photos: z.array(z.url()).min(1).max(50) });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -175,6 +176,22 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (!family) return reply.code(404).send({ error: { code: "INVITATION_NOT_FOUND", message: "This family invite code is invalid" } });
     await repository.joinFamily(user.id, family.id, "Relative");
     return { familyId: family.id };
+  });
+
+  app.get("/api/memories", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
+    return { memories: await repository.listMemoryAlbums(user.id, familyId) };
+  });
+
+  app.post("/api/memories", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const input = memorySchema.parse(request.body);
+    if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    const album = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
+    return reply.code(201).send({ memory: await repository.createMemoryAlbum(album) });
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {
