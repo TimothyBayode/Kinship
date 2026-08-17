@@ -16,6 +16,8 @@ export type ApiFamily = {
   createdBy: string;
   createdAt: string;
   role: "owner" | "admin" | "member";
+  pictureUrl: string;
+  inviteCode: string;
 };
 
 export type ApiFamilyMember = {
@@ -112,6 +114,9 @@ export const familyApi = {
   },
   setRelationship(familyId: string, memberId: string, relationship: string) {
     return request<void>(`/api/families/${familyId}/members/${memberId}/relationship`, { method: "PATCH", body: JSON.stringify({ relationship }) });
+  },
+  join(code: string) {
+    return request<{ familyId: string }>("/api/families/join", { method: "POST", body: JSON.stringify({ code }) });
   },
 };
 

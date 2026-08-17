@@ -128,14 +128,21 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   app.get("/api/families", async (request, reply) => {
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
-    return { families: await repository.listFamiliesForUser(user.id) };
+    const families = await repository.listFamiliesForUser(user.id);
+    for (const family of families) {
+      if (!family.inviteCode) {
+        family.inviteCode = createInviteCode();
+        await repository.setFamilyInviteCode(family.id, family.inviteCode);
+      }
+    }
+    return { families };
   });
 
   app.post("/api/families", async (request, reply) => {
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     const input = familySchema.parse(request.body);
-    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString(), pictureUrl: input.pictureUrl };
+    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString(), pictureUrl: input.pictureUrl, inviteCode: createInviteCode() };
     await repository.createFamily(family, { userId: user.id, familyId: family.id, role: "owner", relationship: "Steward" });
     return reply.code(201).send({ family });
   });
@@ -145,6 +152,16 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (!user) return;
     const { familyId } = z.object({ familyId: z.uuid() }).parse(request.params);
     return { members: await repository.listFamilyMembers(user.id, familyId) };
+  });
+
+  app.post("/api/families/join", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const code = inviteCodeSchema.parse(request.body).code;
+    const family = await repository.findFamilyByInviteCode(code);
+    if (!family) return reply.code(404).send({ error: { code: "INVITATION_NOT_FOUND", message: "This family invite code is invalid" } });
+    await repository.joinFamily(user.id, family.id, "Relative");
+    return { familyId: family.id };
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {

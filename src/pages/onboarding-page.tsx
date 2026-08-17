@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Users } from "lucide-react";
 
 import { Button, Logo, SelectMenu } from "@/components/kinship-ui";
-import { familyApi, invitationApi, profileApi, uploadApi } from "@/lib/api";
+import { familyApi, profileApi, uploadApi } from "@/lib/api";
 
 const inputClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20";
 
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
       setLoading(true);
       setError("");
       if (mode === "create") await familyApi.create(familyName, familyPicture);
-      else await invitationApi.accept(inviteCode.trim().toUpperCase());
+      else await familyApi.join(inviteCode.trim().toUpperCase());
       navigate("/family", { replace: true });
     } catch (exception) {
       setError((exception as Error).message);

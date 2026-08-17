@@ -100,7 +100,7 @@ export function SectionTitle({
   children,
 }: {
   eyebrow?: string;
-  title: string;
+  title: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (

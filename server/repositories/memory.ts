@@ -66,6 +66,15 @@ export class MemoryRepository implements KinshipRepository {
     return structuredClone(family);
   }
 
+  async setFamilyInviteCode(familyId: string, inviteCode: string) {
+    const family = this.families.get(familyId);
+    if (family) this.families.set(familyId, { ...family, inviteCode });
+  }
+
+  async findFamilyByInviteCode(inviteCode: string) {
+    return structuredClone([...this.families.values()].find((family) => family.inviteCode === inviteCode) ?? null);
+  }
+
   async joinFamily(userId: string, familyId: string, relationship: string) {
     if (!this.users.has(userId) || !this.families.has(familyId)) throw new Error("NOT_FOUND");
     if (!this.memberships.some((item) => item.userId === userId && item.familyId === familyId)) {

@@ -28,6 +28,7 @@ export type Family = {
   createdBy: string;
   createdAt: string;
   pictureUrl: string;
+  inviteCode: string;
 };
 
 export type Membership = {
@@ -80,6 +81,8 @@ export interface KinshipRepository {
   deleteSession(tokenHash: string): Promise<void>;
   deleteExpiredSessions(now: string): Promise<void>;
   createFamily(family: Family, membership: Membership): Promise<Family>;
+  setFamilyInviteCode(familyId: string, inviteCode: string): Promise<void>;
+  findFamilyByInviteCode(inviteCode: string): Promise<Family | null>;
   joinFamily(userId: string, familyId: string, relationship: string): Promise<void>;
   listFamiliesForUser(userId: string): Promise<Array<Family & { role: Membership["role"] }>>;
   findFamilyForUser(userId: string, familyId: string): Promise<(Family & { role: Membership["role"] }) | null>;

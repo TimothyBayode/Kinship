@@ -63,6 +63,15 @@ export class HydraDbRepository implements KinshipRepository {
     return family;
   }
 
+  async setFamilyInviteCode(familyId: string, inviteCode: string) {
+    await this.client.query("MATCH (f:Family) WHERE f.appId = $familyId SET f.inviteCode = $inviteCode", { familyId, inviteCode });
+  }
+
+  async findFamilyByInviteCode(inviteCode: string) {
+    const [row] = await this.client.query("MATCH (f:Family) WHERE f.inviteCode = $inviteCode RETURN f.appId AS id, f.vertexId AS vertexId, f.name AS name, f.createdBy AS createdBy, f.createdAt AS createdAt, f.pictureUrl AS pictureUrl, f.inviteCode AS inviteCode LIMIT 1", { inviteCode });
+    return row ? row as Family : null;
+  }
+
   async joinFamily(userId: string, familyId: string, relationship: string) {
     if (await this.findFamilyForUser(userId, familyId)) return;
     const user = await this.findUserById(userId);
@@ -74,7 +83,7 @@ export class HydraDbRepository implements KinshipRepository {
   }
 
   async listFamiliesForUser(userId: string) {
-    const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE u.appId = $userId RETURN f.appId AS id, f.vertexId AS vertexId, f.name AS name, f.createdBy AS createdBy, f.createdAt AS createdAt, m.role AS role", { userId });
+    const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE u.appId = $userId RETURN f.appId AS id, f.vertexId AS vertexId, f.name AS name, f.createdBy AS createdBy, f.createdAt AS createdAt, f.pictureUrl AS pictureUrl, f.inviteCode AS inviteCode, m.role AS role", { userId });
     return rows as Array<Family & { role: Membership["role"] }>;
   }
 
