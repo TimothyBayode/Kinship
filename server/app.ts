@@ -33,7 +33,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   app.addHook("onRequest", async (request, reply) => {
-    if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
+    if (config.NODE_ENV === "development" || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
     const origin = request.headers.origin;
     if (origin && origin !== config.APP_ORIGIN) {
       request.log.warn({ receivedOrigin: origin, expectedOrigin: config.APP_ORIGIN }, "request origin is not allowed");
@@ -41,7 +41,6 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
         error: {
           code: "ORIGIN_NOT_ALLOWED",
           message: "Request origin is not allowed",
-          ...(config.NODE_ENV === "development" ? { receivedOrigin: origin, expectedOrigin: config.APP_ORIGIN } : {}),
         },
       });
     }
