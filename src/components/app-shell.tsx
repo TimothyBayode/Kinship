@@ -40,10 +40,12 @@ export function AppShell() {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return navigate("/auth", { replace: true });
+      if (!session) return navigate(`/auth?next=${encodeURIComponent(`${pathname}${window.location.search}`)}`, { replace: true });
       setAccessToken(session.access_token);
       try {
-        setUser((await authApi.sync()).user);
+        const synced = (await authApi.sync()).user;
+        setUser(synced);
+        if (!synced.profileComplete && pathname !== "/onboarding") navigate(`/onboarding?next=${encodeURIComponent(`${pathname}${window.location.search}`)}`, { replace: true });
       } catch {
         navigate("/auth", { replace: true });
       } finally {
@@ -52,7 +54,7 @@ export function AppShell() {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setAccessToken(session?.access_token ?? null));
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, pathname]);
 
   useEffect(() => {
     if (!accountOpen) return;

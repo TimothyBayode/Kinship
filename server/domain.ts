@@ -6,6 +6,10 @@ export type User = {
   passwordHash: string;
   emailVerified: boolean;
   createdAt: string;
+  gender: string;
+  phone: string;
+  birthday: string;
+  profileComplete: boolean;
 };
 
 export type Session = {
@@ -23,12 +27,33 @@ export type Family = {
   name: string;
   createdBy: string;
   createdAt: string;
+  pictureUrl: string;
 };
 
 export type Membership = {
   userId: string;
   familyId: string;
   role: "owner" | "admin" | "member";
+  relationship: string;
+};
+
+export type Invitation = {
+  id: string;
+  vertexId: number;
+  code: string;
+  familyId: string;
+  familyName: string;
+  invitedBy: string;
+  inviterName: string;
+  invitedEmail: string;
+  relationship: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type FamilyMember = Pick<User, "id" | "name" | "email" | "gender" | "birthday"> & {
+  role: Membership["role"];
+  relationship: string;
 };
 
 export type SourceChunk = {
@@ -49,12 +74,18 @@ export interface KinshipRepository {
   findUserById(id: string): Promise<User | null>;
   verifyUser(id: string): Promise<void>;
   updateUserPassword(id: string, passwordHash: string): Promise<void>;
+  updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">): Promise<User>;
   createSession(session: Session): Promise<void>;
   findSession(tokenHash: string): Promise<Session | null>;
   deleteSession(tokenHash: string): Promise<void>;
   deleteExpiredSessions(now: string): Promise<void>;
   createFamily(family: Family, membership: Membership): Promise<Family>;
+  joinFamily(userId: string, familyId: string, relationship: string): Promise<void>;
   listFamiliesForUser(userId: string): Promise<Array<Family & { role: Membership["role"] }>>;
   findFamilyForUser(userId: string, familyId: string): Promise<(Family & { role: Membership["role"] }) | null>;
+  listFamilyMembers(userId: string, familyId: string): Promise<FamilyMember[]>;
+  setMemberRelationship(userId: string, familyId: string, relativeUserId: string, relationship: string): Promise<void>;
+  createInvitation(invitation: Invitation): Promise<Invitation>;
+  findInvitationByCode(code: string): Promise<Invitation | null>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

@@ -9,6 +9,8 @@ import FamilyPage from "@/pages/family-page";
 import FilesPage from "@/pages/files-page";
 import HomePage from "@/pages/home-page";
 import MemoriesPage from "@/pages/memories-page";
+import InvitePage from "@/pages/invite-page";
+import OnboardingPage from "@/pages/onboarding-page";
 
 const router = createBrowserRouter([
   { path: "/", element: <HomePage /> },
@@ -17,6 +19,8 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "/activity", element: <ActivityPage /> },
+      { path: "/onboarding", element: <OnboardingPage /> },
+      { path: "/invite", element: <InvitePage /> },
       { path: "/family", element: <FamilyPage /> },
       { path: "/memories", element: <MemoriesPage /> },
       { path: "/events", element: <EventsPage /> },

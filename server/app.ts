@@ -18,6 +18,10 @@ const registerSchema = credentialsSchema.extend({ name: z.string().trim().min(2)
 const tokenSchema = z.object({ token: z.string().min(20) });
 const familySchema = z.object({ name: z.string().trim().min(2).max(100) });
 const chatSchema = z.object({ familyId: z.uuid(), question: z.string().trim().min(1).max(8_000) });
+const profileSchema = z.object({ gender: z.enum(["female", "male", "non-binary", "prefer-not-to-say"]), phone: z.string().trim().min(7).max(30), birthday: z.iso.date() });
+const invitationSchema = z.object({ familyId: z.uuid(), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
+const inviteCodeSchema = z.object({ code: z.string().trim().min(6).max(20).transform((value) => value.toUpperCase()) });
+const relationshipSchema = z.object({ relationship: z.string().trim().min(2).max(60) });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -69,6 +73,13 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   app.post("/api/auth/sync", async (request, reply) => {
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     return user ? { user } : undefined;
+  });
+
+  app.patch("/api/profile", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const updated = await repository.updateUserProfile(user.id, profileSchema.parse(request.body));
+    return { user: toPublicUser(updated) };
   });
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
@@ -124,9 +135,58 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     const input = familySchema.parse(request.body);
-    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString() };
-    await repository.createFamily(family, { userId: user.id, familyId: family.id, role: "owner" });
+    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString(), pictureUrl: "" };
+    await repository.createFamily(family, { userId: user.id, familyId: family.id, role: "owner", relationship: "Steward" });
     return reply.code(201).send({ family });
+  });
+
+  app.get("/api/families/:familyId/members", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { familyId } = z.object({ familyId: z.uuid() }).parse(request.params);
+    return { members: await repository.listFamilyMembers(user.id, familyId) };
+  });
+
+  app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { familyId, memberId } = z.object({ familyId: z.uuid(), memberId: z.uuid() }).parse(request.params);
+    await repository.setMemberRelationship(user.id, familyId, memberId, relationshipSchema.parse(request.body).relationship);
+    return reply.code(204).send();
+  });
+
+  app.post("/api/invitations", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const input = invitationSchema.parse(request.body);
+    const family = await repository.findFamilyForUser(user.id, input.familyId);
+    if (!family || !["owner", "admin"].includes(family.role)) return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Only family stewards can invite members" } });
+    const invitation = {
+      id: crypto.randomUUID(), vertexId: randomVertexId(), code: createInviteCode(), familyId: family.id, familyName: family.name,
+      invitedBy: user.id, inviterName: user.name, invitedEmail: input.email.toLowerCase(), relationship: input.relationship,
+      createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    };
+    await repository.createInvitation(invitation);
+    const delivery = input.email ? await email.sendFamilyInvitation(input.email, invitation) : { delivered: false };
+    return reply.code(201).send({ invitation, delivery });
+  });
+
+  app.get("/api/invitations/:code", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const invitation = await repository.findInvitationByCode(inviteCodeSchema.parse(request.params).code);
+    if (!invitation || invitation.expiresAt <= new Date().toISOString()) return reply.code(404).send({ error: { code: "INVITATION_NOT_FOUND", message: "This invitation is invalid or expired" } });
+    return { invitation };
+  });
+
+  app.post("/api/invitations/:code/accept", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const invitation = await repository.findInvitationByCode(inviteCodeSchema.parse(request.params).code);
+    if (!invitation || invitation.expiresAt <= new Date().toISOString()) return reply.code(404).send({ error: { code: "INVITATION_NOT_FOUND", message: "This invitation is invalid or expired" } });
+    if (invitation.invitedEmail && invitation.invitedEmail !== user.email.toLowerCase()) return reply.code(403).send({ error: { code: "INVITATION_EMAIL_MISMATCH", message: "This invitation was sent to another email address" } });
+    await repository.joinFamily(user.id, invitation.familyId, invitation.relationship);
+    return { familyId: invitation.familyId };
   });
 
   app.get("/api/uploads/cloudinary-config", async (request, reply) => {
@@ -160,8 +220,8 @@ async function requireUser(request: FastifyRequest, reply: FastifyReply, auth: A
 async function getAuthenticatedUser(request: FastifyRequest, auth: AuthService, supabase: SupabaseAuthService, repository: KinshipRepository, config: AppConfig) {
   const identity = await supabase.getIdentity(request.headers.authorization);
   if (identity) {
-    const existing = await repository.findUserById(identity.id);
-    if (existing) return { id: existing.id, email: existing.email, name: existing.name, emailVerified: existing.emailVerified, createdAt: existing.createdAt };
+    const existing = await repository.findUserById(identity.id) ?? await repository.findUserByEmail(identity.email);
+    if (existing) return toPublicUser(existing);
     const user = await repository.createUser({
       id: identity.id,
       vertexId: randomVertexId(),
@@ -171,9 +231,17 @@ async function getAuthenticatedUser(request: FastifyRequest, auth: AuthService, 
       passwordHash: "supabase-managed",
       createdAt: identity.createdAt,
     });
-    return { id: user.id, email: user.email, name: user.name, emailVerified: identity.emailVerified, createdAt: user.createdAt };
+    return { ...toPublicUser(user), emailVerified: identity.emailVerified };
   }
   return auth.authenticate(request.cookies[config.SESSION_COOKIE_NAME]);
+}
+
+function toPublicUser(user: import("./domain.js").User) {
+  return { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt, gender: user.gender || "", phone: user.phone || "", birthday: user.birthday || "", profileComplete: Boolean(user.profileComplete) };
+}
+
+function createInviteCode() {
+  return crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase();
 }
 
 function setSessionCookie(reply: FastifyReply, config: AppConfig, token: string, expiresAt: string) {

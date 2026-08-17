@@ -38,4 +38,17 @@ export class EmailService {
     if (error) throw new Error(`Resend failed: ${error.message}`);
     return { delivered: true };
   }
+
+  async sendFamilyInvitation(email: string, input: { code: string; inviterName: string; familyName: string }) {
+    const url = `${this.config.APP_ORIGIN}/invite?code=${encodeURIComponent(input.code)}`;
+    if (!this.resend) return { delivered: false, previewUrl: url };
+    const { error } = await this.resend.emails.send({
+      from: this.config.RESEND_FROM_EMAIL,
+      to: email,
+      subject: `${input.inviterName} invited you to Kinship`,
+      html: `<p>${input.inviterName} invited you to join ${input.familyName} on Kinship.</p><p><a href="${url}">View invitation</a></p><p>You can also enter this invite code: <strong>${input.code}</strong></p>`,
+    });
+    if (error) throw new Error(`Resend failed: ${error.message}`);
+    return { delivered: true };
+  }
 }

@@ -1,187 +1,61 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Copy, Mail, Plus, Search, X } from "lucide-react";
 
 import { Avatar, Button, SectionTitle } from "@/components/kinship-ui";
-import { familyApi, type ApiFamily } from "@/lib/api";
-import { family, members } from "@/lib/types";
+import { familyApi, invitationApi, type ApiFamily, type ApiFamilyMember } from "@/lib/api";
 
-const memberPositions = [
-  "left-[360px] top-0",
-  "left-[760px] top-0",
-  "left-[40px] top-[240px]",
-  "left-[340px] top-[240px]",
-  "left-[640px] top-[240px]",
-  "left-[940px] top-[240px]",
-  "left-[360px] top-[480px]",
-  "left-[680px] top-[480px]",
-  "left-[1180px] top-[240px]",
-] as const;
+const relationships = ["Parent", "Child", "Sibling", "Spouse", "Grandparent", "Grandchild", "Aunt", "Uncle", "Cousin", "Relative"];
 
 export function FamilyView() {
-  const [query, setQuery] = useState("");
-  const [zoom, setZoom] = useState(1);
-  const [invite, setInvite] = useState(false);
-  const [status, setStatus] = useState("");
   const [families, setFamilies] = useState<ApiFamily[]>([]);
-  const [familyName, setFamilyName] = useState("");
-  const [loadingFamilies, setLoadingFamilies] = useState(true);
-  const activeFamily = families[0];
-  const filtered = useMemo(
-    () =>
-      members.filter((member) =>
-        member.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [query],
-  );
+  const [members, setMembers] = useState<ApiFamilyMember[]>([]);
+  const [query, setQuery] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [relationship, setRelationship] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [status, setStatus] = useState("");
+  const family = families[0];
+  const filtered = useMemo(() => members.filter((member) => member.name.toLowerCase().includes(query.toLowerCase())), [members, query]);
 
   useEffect(() => {
-    familyApi.list()
-      .then(setFamilies)
-      .catch((error: Error) => setStatus(error.message))
-      .finally(() => setLoadingFamilies(false));
+    familyApi.list().then(async (items) => {
+      setFamilies(items);
+      if (items[0]) setMembers(await familyApi.members(items[0].id));
+    }).catch((error: Error) => setStatus(error.message));
   }, []);
 
-  const createFamily = async () => {
+  const invite = async () => {
+    if (!family) return;
     try {
       setStatus("");
-      const created = await familyApi.create(familyName);
-      setFamilies((current) => [{ ...created, role: "owner" }, ...current]);
-      setFamilyName("");
-      setInvite(false);
-    } catch (error) {
-      setStatus((error as Error).message);
-    }
+      const result = await invitationApi.create({ familyId: family.id, email, relationship });
+      setInviteCode(result.invitation.code);
+      setStatus(email ? "Invitation sent" : "Invite code generated");
+    } catch (error) { setStatus((error as Error).message); }
+  };
+
+  const updateRelationship = async (memberId: string, value: string) => {
+    if (!family) return;
+    await familyApi.setRelationship(family.id, memberId, value);
+    setMembers((current) => current.map((member) => member.id === memberId ? { ...member, relationship: value } : member));
   };
 
   return (
     <section>
-      <SectionTitle title={activeFamily?.name ?? family.name}>
+      <SectionTitle title={family?.name ?? "Your Family"}>
         <div className="flex flex-wrap gap-2">
-          <div className="surface flex items-center gap-2 rounded-md px-4 py-3 text-muted-foreground">
-            <Search className="size-4" />
-            <input
-              aria-label="Search Members"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search Members"
-              className="w-48 bg-transparent text-sm outline-none"
-            />
-          </div>
-          <Button className="border-0" onClick={() => setZoom(Math.max(0.25, zoom - 0.1))}>
-            <ZoomOut className="size-4" />
-          </Button>
-          <Button className="border-0" onClick={() => setZoom(Math.min(1.25, zoom + 0.1))}>
-            <ZoomIn className="size-4" />
-          </Button>
-          <Button primary onClick={() => { setStatus(""); setInvite(true); }}>
-            <Plus className="size-4" />
-            {activeFamily ? "New Family" : "Create Family"}
-          </Button>
+          <div className="surface flex items-center gap-2 rounded-md px-4 py-3 text-muted-foreground"><Search className="size-4" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search members" className="w-48 bg-transparent text-sm outline-none" /></div>
+          {family && ["owner", "admin"].includes(family.role) && <Button primary onClick={() => { setInviteOpen(true); setStatus(""); setInviteCode(""); }}><Plus className="size-4" />Invite family member</Button>}
         </div>
       </SectionTitle>
-      <div className="mt-8 text-right">
-        <span className="text-sm text-muted-foreground">
-          {filtered.length} {filtered.length === 1 ? "member" : "members"}
-        </span>
-      </div>
-      <div className="grid-paper surface relative mt-6 min-h-[620px] overflow-auto rounded-[2rem] p-8">
-        <span className="absolute right-6 top-5 z-20 rounded-md bg-[#f5f5f2] px-3 py-1.5 text-sm font-semibold text-muted-foreground">
-          {Math.round(zoom * 100)}%
-        </span>
-        <div
-          className="relative mx-auto h-[640px] w-[1400px]"
-          style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}
-        >
-          <svg
-            className="absolute inset-0 size-full"
-            viewBox="0 0 1400 640"
-            fill="none"
-            aria-hidden="true"
-          >
-            <g
-              stroke="var(--primary)"
-              strokeOpacity="0.75"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            >
-              <path d="M552 80H760" />
-              <path d="M656 80V184Q656 200 640 200H152Q136 200 136 216V240" />
-              <path d="M656 200H452Q436 200 436 216V240" />
-              <path d="M656 200H720Q736 200 736 216V240" />
-              <path d="M656 200H1020Q1036 200 1036 216V240" />
-              <path d="M1132 320H1180" />
-              <path d="M532 320H640" />
-              <path d="M586 320V424Q586 440 570 440H472Q456 440 456 456V480" />
-              <path d="M586 440H760Q776 440 776 456V480" />
-            </g>
-          </svg>
-          {members.map((member, index) => {
-            const visible =
-              member.generation !== 1 ||
-              filtered.some((match) => match.id === member.id);
 
-            return visible ? (
-              <div
-                key={member.id}
-                className={`absolute z-10 ${memberPositions[index]} ${member.isInLaw ? "opacity-60" : ""}`}
-              >
-                <MemberCard member={member} />
-              </div>
-            ) : null;
-          })}
-        </div>
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((member) => <article key={member.id} className="surface flex items-center gap-4 rounded-2xl p-5"><Avatar name={member.name} size="size-14" /><div className="min-w-0 flex-1"><p className="truncate font-semibold">{member.name}</p><p className="truncate text-sm text-muted-foreground">{member.email}</p><select value={member.relationship || ""} onChange={(event) => void updateRelationship(member.id, event.target.value)} className="mt-3 w-full rounded-md border bg-white px-3 py-2 text-sm"><option value="">Choose relationship</option>{relationships.map((item) => <option key={item} value={item}>{item}</option>)}</select></div><span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">{member.role === "owner" ? "Steward" : member.role}</span></article>)}
+        {!filtered.length && <div className="surface rounded-2xl p-8 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">No family members found.</div>}
       </div>
 
-      {invite && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-foreground/30 p-4"
-          onClick={() => setInvite(false)}
-        >
-          <div
-            className="surface w-full max-w-lg rounded-3xl p-7"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">New family archive</h2>
-              <button className="rounded-md" onClick={() => setInvite(false)} aria-label="Close">
-                <X />
-              </button>
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">Create a family archive backed by HydraDB.</p>
-            <label className="mt-7 block text-sm font-medium">
-              Family name
-              <input
-                value={familyName}
-                onChange={(event) => setFamilyName(event.target.value)}
-                className="mt-2 w-full rounded-xl border bg-card px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Bayode Family"
-              />
-            </label>
-            {status && <p className="mt-3 text-sm text-primary">{status}</p>}
-            <Button primary onClick={createFamily} disabled={familyName.trim().length < 2} className="mt-6 w-full">
-              <Plus className="size-4" />
-              Create Family
-            </Button>
-          </div>
-        </div>
-      )}
-      {loadingFamilies && <p className="mt-4 text-sm text-muted-foreground">Loading family archive...</p>}
+      {inviteOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/30 p-4" onClick={() => setInviteOpen(false)}><div className="surface w-full max-w-lg rounded-3xl p-7" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Invite family member</h2><button onClick={() => setInviteOpen(false)}><X /></button></div><p className="mt-2 text-sm text-muted-foreground">Generate a shareable code or send the invitation directly by email.</p><label className="mt-6 block text-sm font-medium">Their relationship to you<select value={relationship} onChange={(event) => setRelationship(event.target.value)} className="mt-2 w-full rounded-md border bg-white px-4 py-3"><option value="">Choose relationship</option>{relationships.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="mt-4 block text-sm font-medium">Email address <span className="font-normal text-muted-foreground">(optional)</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" className="mt-2 w-full rounded-md border bg-white px-4 py-3" placeholder="relative@example.com" /></label>{status && <p className="mt-4 text-sm text-primary">{status}</p>}{inviteCode && <div className="mt-4 flex items-center justify-between rounded-md bg-[#f5f5f2] p-4"><span className="font-mono text-xl font-bold tracking-[.2em]">{inviteCode}</span><button onClick={() => navigator.clipboard.writeText(inviteCode)} aria-label="Copy invite code"><Copy className="size-4" /></button></div>}<Button primary disabled={!relationship} onClick={invite} className="mt-6 w-full">{email ? <Mail className="size-4" /> : <Plus className="size-4" />}{email ? "Send invitation" : "Generate invite code"}</Button></div></div>}
     </section>
-  );
-}
-
-function MemberCard({ member }: { member: (typeof members)[number] }) {
-  return (
-    <div
-      className={`flex h-40 w-48 flex-col items-center rounded-lg bg-[#f5f5f2] p-5 text-center shadow-[0_4px_18px_rgba(23,21,29,0.05)] ${member.selected ? "ring-2 ring-primary/20" : ""}`}
-    >
-      <Avatar src={member.image} name={member.name} size="size-14" />
-      <p className="mt-3 text-sm font-semibold">{member.name}</p>
-      <span className="mt-2 inline-flex rounded-full border border-foreground/10 bg-[#f5f5f2] px-3 py-1 text-xs">
-        {member.relation}
-      </span>
-    </div>
   );
 }

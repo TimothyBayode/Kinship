@@ -102,7 +102,7 @@ export class AuthError extends Error {
 }
 
 export function publicUser(user: User) {
-  return { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt };
+  return { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt, gender: user.gender, phone: user.phone, birthday: user.birthday, profileComplete: user.profileComplete };
 }
 
 function hashToken(token: string) {

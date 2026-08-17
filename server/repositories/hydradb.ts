@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { CreateUser, Family, KinshipRepository, Membership, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -10,16 +10,17 @@ export class HydraDbRepository implements KinshipRepository {
   async createUser(user: CreateUser) {
     const existing = await this.findUserByEmail(user.email);
     if (existing) throw new Error("EMAIL_EXISTS");
-    await this.upsertVertex("User", { ...user, emailVerified: false });
-    return { ...user, emailVerified: false };
+    const created = { ...user, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false };
+    await this.upsertVertex("User", created);
+    return created;
   }
 
   async findUserByEmail(email: string) {
-    return this.readUser("MATCH (u:User) WHERE u.email = $email RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt LIMIT 1", { email });
+    return this.readUser("MATCH (u:User) WHERE u.email = $email RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete LIMIT 1", { email });
   }
 
   async findUserById(id: string) {
-    return this.readUser("MATCH (u:User) WHERE u.appId = $id RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt LIMIT 1", { id });
+    return this.readUser("MATCH (u:User) WHERE u.appId = $id RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete LIMIT 1", { id });
   }
 
   async verifyUser(id: string) {
@@ -28,6 +29,13 @@ export class HydraDbRepository implements KinshipRepository {
 
   async updateUserPassword(id: string, passwordHash: string) {
     await this.client.query("MATCH (u:User) WHERE u.appId = $id SET u.passwordHash = $passwordHash", { id, passwordHash });
+  }
+
+  async updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">) {
+    await this.client.query("MATCH (u:User) WHERE u.appId = $id SET u.gender = $gender, u.phone = $phone, u.birthday = $birthday, u.profileComplete = true", { id, ...profile });
+    const user = await this.findUserById(id);
+    if (!user) throw new Error("USER_NOT_FOUND");
+    return user;
   }
 
   async createSession(session: Session) { await this.upsertVertex("Session", session); }
@@ -59,6 +67,16 @@ export class HydraDbRepository implements KinshipRepository {
     return family;
   }
 
+  async joinFamily(userId: string, familyId: string, relationship: string) {
+    if (await this.findFamilyForUser(userId, familyId)) return;
+    const user = await this.findUserById(userId);
+    const [family] = await this.client.query("MATCH (f:Family) WHERE f.appId = $familyId RETURN f.vertexId AS vertexId", { familyId });
+    if (!user || !family) throw new Error("NOT_FOUND");
+    await this.client.query("MATCH (u:User {id: $userVertex}), (f:Family {id: $familyVertex}) CREATE (u)-[:MEMBER_OF {id: $relationshipId, role: $role, relationship: $relationship, userId: $userId, familyId: $familyId}]->(f)", {
+      userVertex: user.vertexId, familyVertex: family.vertexId, relationshipId: randomVertexId(), role: "member", relationship, userId, familyId,
+    });
+  }
+
   async listFamiliesForUser(userId: string) {
     const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE u.appId = $userId RETURN f.appId AS id, f.vertexId AS vertexId, f.name AS name, f.createdBy AS createdBy, f.createdAt AS createdAt, m.role AS role", { userId });
     return rows as Array<Family & { role: Membership["role"] }>;
@@ -66,6 +84,35 @@ export class HydraDbRepository implements KinshipRepository {
 
   async findFamilyForUser(userId: string, familyId: string) {
     return (await this.listFamiliesForUser(userId)).find((family) => family.id === familyId) ?? null;
+  }
+
+  async listFamilyMembers(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE f.appId = $familyId RETURN u.appId AS id, u.name AS name, u.email AS email, u.gender AS gender, u.birthday AS birthday, m.role AS role, m.relationship AS relationship", { familyId });
+    return rows as FamilyMember[];
+  }
+
+  async setMemberRelationship(userId: string, familyId: string, relativeUserId: string, relationship: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) throw new Error("FAMILY_NOT_FOUND");
+    const source = await this.findUserById(userId);
+    const target = await this.findUserById(relativeUserId);
+    if (!source || !target) throw new Error("USER_NOT_FOUND");
+    const [existing] = await this.client.query("MATCH (u:User)-[r:RELATED_TO]->(v:User) WHERE u.appId = $userId AND v.appId = $relativeUserId AND r.familyId = $familyId RETURN r.id AS id", { userId, relativeUserId, familyId });
+    if (existing) {
+      await this.client.query("MATCH (u:User)-[r:RELATED_TO]->(v:User) WHERE u.appId = $userId AND v.appId = $relativeUserId AND r.familyId = $familyId SET r.relationship = $relationship", { userId, relativeUserId, familyId, relationship });
+      return;
+    }
+    await this.client.query("MATCH (u:User {id: $sourceVertex}), (v:User {id: $targetVertex}) CREATE (u)-[:RELATED_TO {id: $edgeId, familyId: $familyId, relationship: $relationship}]->(v)", { sourceVertex: source.vertexId, targetVertex: target.vertexId, edgeId: randomVertexId(), familyId, relationship });
+  }
+
+  async createInvitation(invitation: Invitation) {
+    await this.upsertVertex("Invitation", invitation);
+    return invitation;
+  }
+
+  async findInvitationByCode(code: string) {
+    const [row] = await this.client.query("MATCH (i:Invitation) WHERE i.code = $code RETURN i.appId AS id, i.vertexId AS vertexId, i.code AS code, i.familyId AS familyId, i.familyName AS familyName, i.invitedBy AS invitedBy, i.inviterName AS inviterName, i.invitedEmail AS invitedEmail, i.relationship AS relationship, i.expiresAt AS expiresAt, i.createdAt AS createdAt LIMIT 1", { code });
+    return row ? row as Invitation : null;
   }
 
   async listSourceChunks(familyId: string, limit: number) {

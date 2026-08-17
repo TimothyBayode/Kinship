@@ -4,6 +4,10 @@ export type ApiUser = {
   name: string;
   emailVerified: boolean;
   createdAt: string;
+  gender: string;
+  phone: string;
+  birthday: string;
+  profileComplete: boolean;
 };
 
 export type ApiFamily = {
@@ -12,6 +16,26 @@ export type ApiFamily = {
   createdBy: string;
   createdAt: string;
   role: "owner" | "admin" | "member";
+};
+
+export type ApiFamilyMember = {
+  id: string;
+  name: string;
+  email: string;
+  gender: string;
+  birthday: string;
+  role: "owner" | "admin" | "member";
+  relationship: string;
+};
+
+export type ApiInvitation = {
+  code: string;
+  familyId: string;
+  familyName: string;
+  inviterName: string;
+  invitedEmail: string;
+  relationship: string;
+  expiresAt: string;
 };
 
 type ApiErrorBody = { error?: { message?: string } };
@@ -79,6 +103,30 @@ export const familyApi = {
       method: "POST",
       body: JSON.stringify({ name }),
     })).family;
+  },
+  async members(familyId: string) {
+    return (await request<{ members: ApiFamilyMember[] }>(`/api/families/${familyId}/members`)).members;
+  },
+  setRelationship(familyId: string, memberId: string, relationship: string) {
+    return request<void>(`/api/families/${familyId}/members/${memberId}/relationship`, { method: "PATCH", body: JSON.stringify({ relationship }) });
+  },
+};
+
+export const profileApi = {
+  async update(profile: { gender: string; phone: string; birthday: string }) {
+    return (await request<{ user: ApiUser }>("/api/profile", { method: "PATCH", body: JSON.stringify(profile) })).user;
+  },
+};
+
+export const invitationApi = {
+  async create(input: { familyId: string; email: string; relationship: string }) {
+    return request<{ invitation: ApiInvitation; delivery: { delivered: boolean; previewUrl?: string } }>("/api/invitations", { method: "POST", body: JSON.stringify(input) });
+  },
+  async get(code: string) {
+    return (await request<{ invitation: ApiInvitation }>(`/api/invitations/${encodeURIComponent(code)}`)).invitation;
+  },
+  accept(code: string) {
+    return request<{ familyId: string }>(`/api/invitations/${encodeURIComponent(code)}/accept`, { method: "POST" });
   },
 };
 

@@ -1,4 +1,4 @@
-import type { CreateUser, Family, KinshipRepository, Membership, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, Session, SourceChunk, User } from "../domain.js";
 
 export class MemoryRepository implements KinshipRepository {
   private users = new Map<string, User>();
@@ -6,12 +6,14 @@ export class MemoryRepository implements KinshipRepository {
   private families = new Map<string, Family>();
   private memberships: Membership[] = [];
   private sourceChunks: SourceChunk[] = [];
+  private invitations = new Map<string, Invitation>();
+  private relationships = new Map<string, string>();
 
   async health() {}
 
   async createUser(input: CreateUser) {
     if ([...this.users.values()].some((user) => user.email === input.email)) throw new Error("EMAIL_EXISTS");
-    const user: User = { ...input, emailVerified: false };
+    const user: User = { ...input, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false };
     this.users.set(user.id, user);
     return structuredClone(user);
   }
@@ -32,6 +34,14 @@ export class MemoryRepository implements KinshipRepository {
   async updateUserPassword(id: string, passwordHash: string) {
     const user = this.users.get(id);
     if (user) this.users.set(id, { ...user, passwordHash });
+  }
+
+  async updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">) {
+    const user = this.users.get(id);
+    if (!user) throw new Error("USER_NOT_FOUND");
+    const updated = { ...user, ...profile, profileComplete: true };
+    this.users.set(id, updated);
+    return structuredClone(updated);
   }
 
   async createSession(session: Session) {
@@ -56,6 +66,13 @@ export class MemoryRepository implements KinshipRepository {
     return structuredClone(family);
   }
 
+  async joinFamily(userId: string, familyId: string, relationship: string) {
+    if (!this.users.has(userId) || !this.families.has(familyId)) throw new Error("NOT_FOUND");
+    if (!this.memberships.some((item) => item.userId === userId && item.familyId === familyId)) {
+      this.memberships.push({ userId, familyId, role: "member", relationship });
+    }
+  }
+
   async listFamiliesForUser(userId: string) {
     return this.memberships.filter((item) => item.userId === userId).flatMap((item) => {
       const family = this.families.get(item.familyId);
@@ -65,6 +82,28 @@ export class MemoryRepository implements KinshipRepository {
 
   async findFamilyForUser(userId: string, familyId: string) {
     return (await this.listFamiliesForUser(userId)).find((family) => family.id === familyId) ?? null;
+  }
+
+  async listFamilyMembers(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    return this.memberships.filter((item) => item.familyId === familyId).flatMap((item) => {
+      const member = this.users.get(item.userId);
+      return member ? [{ id: member.id, name: member.name, email: member.email, gender: member.gender, birthday: member.birthday, role: item.role, relationship: this.relationships.get(`${userId}:${item.userId}:${familyId}`) ?? item.relationship }] satisfies FamilyMember[] : [];
+    });
+  }
+
+  async setMemberRelationship(userId: string, familyId: string, relativeUserId: string, relationship: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) throw new Error("FAMILY_NOT_FOUND");
+    this.relationships.set(`${userId}:${relativeUserId}:${familyId}`, relationship);
+  }
+
+  async createInvitation(invitation: Invitation) {
+    this.invitations.set(invitation.code, structuredClone(invitation));
+    return structuredClone(invitation);
+  }
+
+  async findInvitationByCode(code: string) {
+    return structuredClone(this.invitations.get(code) ?? null);
   }
 
   async listSourceChunks(familyId: string, limit: number) {

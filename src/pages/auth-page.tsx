@@ -77,7 +77,7 @@ export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
       }
       setAccessToken(result.data.session.access_token);
       await authApi.sync();
-      navigate("/activity");
+      navigate(searchParams.get("next") || "/activity");
     } catch (exception) {
       setError((exception as Error).message);
     } finally {
