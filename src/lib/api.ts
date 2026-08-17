@@ -147,6 +147,9 @@ export const memoryApi = {
   async create(input: { familyId: string; title: string; description: string; memoryDate: string; photos: string[] }) {
     return (await request<{ memory: ApiMemory }>("/api/memories", { method: "POST", body: JSON.stringify(input) })).memory;
   },
+  async addPhotos(memoryId: string, familyId: string, photos: string[]) {
+    return (await request<{ memory: ApiMemory }>(`/api/memories/${memoryId}/photos`, { method: "POST", body: JSON.stringify({ familyId, photos }) })).memory;
+  },
 };
 
 export const invitationApi = {

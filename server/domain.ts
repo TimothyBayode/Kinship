@@ -104,5 +104,6 @@ export interface KinshipRepository {
   findInvitationByCode(code: string): Promise<Invitation | null>;
   createMemoryAlbum(album: MemoryAlbum): Promise<MemoryAlbum>;
   listMemoryAlbums(userId: string, familyId: string): Promise<MemoryAlbum[]>;
+  appendMemoryPhotos(userId: string, familyId: string, memoryId: string, photos: string[]): Promise<MemoryAlbum | null>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

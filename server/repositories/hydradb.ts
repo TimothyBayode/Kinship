@@ -135,6 +135,18 @@ export class HydraDbRepository implements KinshipRepository {
     return rows.map((row) => ({ ...row, photos: parsePhotos(row.photosJson) })) as MemoryAlbum[];
   }
 
+  async appendMemoryPhotos(userId: string, familyId: string, memoryId: string, photoUrls: string[]) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return null;
+    const [row] = await this.client.query("MATCH (m:Memory) WHERE m.appId = $memoryId AND m.familyId = $familyId RETURN m.vertexId AS vertexId, m.photosJson AS photosJson", { memoryId, familyId });
+    if (!row) return null;
+    const photosJson = [...parsePhotos(row.photosJson), ...photoUrls];
+    await this.client.query("MATCH (m:Memory) WHERE m.appId = $memoryId AND m.familyId = $familyId SET m.photosJson = $photosJson", { memoryId, familyId, photosJson: JSON.stringify(photosJson) });
+    const photos = photoUrls.map((url) => { const vertexId = randomVertexId(); return { vertex: vertexId, vertexId, appId: crypto.randomUUID(), url, familyId, createdAt: new Date().toISOString() }; });
+    await this.client.query("UNWIND $rows AS row MERGE (p {id: row.vertex}) SET p:Photo, p.vertexId = row.vertexId, p.appId = row.appId, p.url = row.url, p.familyId = row.familyId, p.createdAt = row.createdAt", { rows: photos });
+    await this.client.query("UNWIND $rows AS row MATCH (m:Memory {id: row.memoryVertex}), (p:Photo {id: row.photoVertex}) CREATE (m)-[:CONTAINS {id: row.edgeId, familyId: row.familyId}]->(p)", { rows: photos.map((photo) => ({ memoryVertex: row.vertexId, photoVertex: photo.vertexId, edgeId: randomVertexId(), familyId })) });
+    return (await this.listMemoryAlbums(userId, familyId)).find((album) => album.id === memoryId) ?? null;
+  }
+
   async listSourceChunks(familyId: string, limit: number) {
     const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });
     return rows as SourceChunk[];
