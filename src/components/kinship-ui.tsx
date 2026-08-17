@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Sparkles } from "lucide-react";
 
 import { initials } from "@/lib/types";
 
@@ -68,6 +69,29 @@ export function Button({
       {children}
     </button>
   );
+}
+
+export function SelectMenu({ value, options, placeholder, onChange, className = "" }: {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  placeholder: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+  }, [open]);
+
+  return <div ref={root} className={`relative ${className}`}><button type="button" onClick={() => setOpen((current) => !current)} className={`flex h-14 w-full items-center justify-between rounded-md border-0 bg-[#f5f5f2] px-4 text-left text-sm outline-none focus:ring-2 focus:ring-primary/20 ${selected ? "text-foreground" : "text-muted-foreground"}`} aria-haspopup="listbox" aria-expanded={open}><span>{selected?.label ?? placeholder}</span><ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} /></button>{open && <div className="absolute inset-x-0 top-full z-30 mt-2 max-h-64 overflow-auto rounded-xl bg-[#f5f5f2] p-2 shadow-[0_10px_30px_rgba(23,21,29,0.12)]" role="listbox">{options.map((option) => <button type="button" key={option.value} onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/10 ${value === option.value ? "font-bold text-primary" : "font-medium"}`} role="option" aria-selected={value === option.value}>{option.label}{value === option.value && <Check className="size-4" />}</button>)}</div>}</div>;
 }
 
 export function SectionTitle({

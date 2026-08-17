@@ -16,7 +16,7 @@ import { SupabaseAuthService } from "./services/supabase.js";
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8).max(128) });
 const registerSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) });
 const tokenSchema = z.object({ token: z.string().min(20) });
-const familySchema = z.object({ name: z.string().trim().min(2).max(100) });
+const familySchema = z.object({ name: z.string().trim().min(2).max(100), pictureUrl: z.union([z.url(), z.literal("")]).optional().default("") });
 const chatSchema = z.object({ familyId: z.uuid(), question: z.string().trim().min(1).max(8_000) });
 const profileSchema = z.object({ gender: z.enum(["female", "male", "non-binary", "prefer-not-to-say"]), phone: z.string().trim().min(7).max(30), birthday: z.iso.date() });
 const invitationSchema = z.object({ familyId: z.uuid(), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
@@ -135,7 +135,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     const input = familySchema.parse(request.body);
-    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString(), pictureUrl: "" };
+    const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString(), pictureUrl: input.pictureUrl };
     await repository.createFamily(family, { userId: user.id, familyId: family.id, role: "owner", relationship: "Steward" });
     return reply.code(201).send({ family });
   });

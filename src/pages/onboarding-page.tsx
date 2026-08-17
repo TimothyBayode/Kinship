@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Users } from "lucide-react";
 
-import { Button, Logo } from "@/components/kinship-ui";
-import { familyApi, invitationApi, profileApi } from "@/lib/api";
+import { Button, Logo, SelectMenu } from "@/components/kinship-ui";
+import { familyApi, invitationApi, profileApi, uploadApi } from "@/lib/api";
 
 const inputClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20";
 
@@ -14,10 +14,12 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<"profile" | "family">("profile");
   const [mode, setMode] = useState<"create" | "join">("create");
   const [gender, setGender] = useState("");
-  const [genderOpen, setGenderOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [birthday, setBirthday] = useState("");
   const [familyName, setFamilyName] = useState("");
+  const [familyPicture, setFamilyPicture] = useState("");
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const pictureInput = useRef<HTMLInputElement>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,7 @@ export default function OnboardingPage() {
     try {
       setLoading(true);
       setError("");
-      if (mode === "create") await familyApi.create(familyName);
+      if (mode === "create") await familyApi.create(familyName, familyPicture);
       else await invitationApi.accept(inviteCode.trim().toUpperCase());
       navigate("/family", { replace: true });
     } catch (exception) {
@@ -57,6 +59,18 @@ export default function OnboardingPage() {
     ? !gender || phone.length < 7 || !birthday
     : mode === "create" ? familyName.trim().length < 2 : inviteCode.trim().length < 6;
 
+  const uploadPicture = async (file: File) => {
+    try {
+      setUploadingPicture(true);
+      setError("");
+      setFamilyPicture(await uploadApi.upload(file));
+    } catch (exception) {
+      setError((exception as Error).message);
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#f5f5f2] px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-5xl"><Logo /></div>
@@ -67,19 +81,19 @@ export default function OnboardingPage() {
 
         {step === "profile" ? (
           <div className="mt-9 grid gap-6 sm:grid-cols-2">
-            <div className="relative"><span className="text-sm font-medium">Gender</span><button type="button" onClick={() => setGenderOpen((open) => !open)} className={`${inputClass} flex items-center justify-between text-left ${gender ? "text-foreground" : "text-muted-foreground"}`} aria-haspopup="listbox" aria-expanded={genderOpen}><span>{genderOptions.find((option) => option.value === gender)?.label ?? "Select gender"}</span><ChevronDown className={`size-4 transition-transform ${genderOpen ? "rotate-180" : ""}`} /></button>{genderOpen && <div className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl bg-[#f5f5f2] p-2 shadow-[0_10px_30px_rgba(23,21,29,0.12)]" role="listbox">{genderOptions.map((option) => <button type="button" key={option.value} onClick={() => { setGender(option.value); setGenderOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/10 ${gender === option.value ? "font-bold text-primary" : "font-medium"}`} role="option" aria-selected={gender === option.value}>{option.label}{gender === option.value && <Check className="size-4" />}</button>)}</div>}</div>
+            <div><span className="text-sm font-medium">Gender</span><SelectMenu value={gender} options={genderOptions} placeholder="Select gender" onChange={setGender} className="mt-2" /></div>
             <label className="text-sm font-medium">Phone number<input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" className={inputClass} placeholder="+234 800 000 0000" /></label>
             <div className="sm:col-span-2"><span className="text-sm font-medium">Birthday</span><BirthdayPicker value={birthday} onChange={setBirthday} /></div>
           </div>
         ) : (
           <div className="mt-9">
             <div className="grid grid-cols-2 rounded-md bg-[#f5f5f2] p-1.5"><button type="button" onClick={() => setMode("create")} className={`h-13 rounded-md px-4 text-sm font-semibold ${mode === "create" ? "bg-primary text-white" : "text-muted-foreground"}`}>Create a family</button><button type="button" onClick={() => setMode("join")} className={`h-13 rounded-md px-4 text-sm font-semibold ${mode === "join" ? "bg-primary text-white" : "text-muted-foreground"}`}>Join with code</button></div>
-            {mode === "create" ? <label className="mt-7 block text-sm font-medium">Family name<input value={familyName} onChange={(event) => setFamilyName(event.target.value)} className={inputClass} placeholder="The Bayode Family" /></label> : <label className="mt-7 block text-sm font-medium">Invite code<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} className={`${inputClass} uppercase`} placeholder="AB12CD34" /></label>}
+            {mode === "create" ? <div className="mt-7"><label className="block text-sm font-medium">Family name<input value={familyName} onChange={(event) => setFamilyName(event.target.value)} className={inputClass} placeholder="The Bayode Family" /></label><span className="mt-6 block text-sm font-medium">Family picture <span className="font-normal text-muted-foreground">(optional)</span></span><input ref={pictureInput} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadPicture(file); event.target.value = ""; }} /><button type="button" onClick={() => pictureInput.current?.click()} className="mt-2 flex min-h-24 w-full items-center gap-4 rounded-md bg-[#f5f5f2] p-4 text-left">{familyPicture ? <img src={familyPicture} alt="Family preview" className="size-16 rounded-md object-cover" /> : <span className="grid size-16 place-items-center rounded-md bg-white text-primary"><ImagePlus className="size-6" /></span>}<span><strong className="block text-sm">{uploadingPicture ? "Uploading..." : familyPicture ? "Change family picture" : "Add family picture"}</strong><span className="mt-1 block text-xs text-muted-foreground">JPG, PNG or WebP</span></span></button></div> : <label className="mt-7 block text-sm font-medium">Invite code<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} className={`${inputClass} uppercase`} placeholder="AB12CD34" /></label>}
             <div className="mt-6 flex min-h-14 items-center gap-3 rounded-md bg-[#f5f5f2] px-4 text-sm text-muted-foreground"><Users className="size-5 text-primary" />You can add a family photo and more relatives later.</div>
           </div>
         )}
         {error && <p role="alert" className="mt-5 text-sm text-destructive">{error}</p>}
-        <Button primary disabled={loading || invalid} onClick={step === "profile" ? saveProfile : finish} className="mt-9 min-h-14 w-full">{loading ? "Please wait..." : "Continue"}<ArrowRight className="size-4" /></Button>
+        <Button primary disabled={loading || uploadingPicture || invalid} onClick={step === "profile" ? saveProfile : finish} className="mt-9 min-h-14 w-full">{loading ? "Please wait..." : "Continue"}<ArrowRight className="size-4" /></Button>
       </section>
     </main>
   );

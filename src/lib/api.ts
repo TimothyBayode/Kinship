@@ -101,10 +101,10 @@ export const familyApi = {
   async list() {
     return (await request<{ families: ApiFamily[] }>("/api/families")).families;
   },
-  async create(name: string) {
+  async create(name: string, pictureUrl = "") {
     return (await request<{ family: ApiFamily }>("/api/families", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, pictureUrl }),
     })).family;
   },
   async members(familyId: string) {
