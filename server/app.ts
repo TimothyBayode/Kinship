@@ -154,6 +154,19 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     return { members: await repository.listFamilyMembers(user.id, familyId) };
   });
 
+  app.post("/api/families/:familyId/invite-code", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { familyId } = z.object({ familyId: z.uuid() }).parse(request.params);
+    const family = await repository.findFamilyForUser(user.id, familyId);
+    if (!family) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    if (!family.inviteCode) {
+      family.inviteCode = createInviteCode();
+      await repository.setFamilyInviteCode(family.id, family.inviteCode);
+    }
+    return { inviteCode: family.inviteCode };
+  });
+
   app.post("/api/families/join", async (request, reply) => {
     const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;

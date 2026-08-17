@@ -118,6 +118,9 @@ export const familyApi = {
   join(code: string) {
     return request<{ familyId: string }>("/api/families/join", { method: "POST", body: JSON.stringify({ code }) });
   },
+  async inviteCode(familyId: string) {
+    return (await request<{ inviteCode: string }>(`/api/families/${familyId}/invite-code`, { method: "POST" })).inviteCode;
+  },
 };
 
 export const profileApi = {

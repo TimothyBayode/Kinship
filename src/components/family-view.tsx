@@ -20,6 +20,9 @@ export function FamilyView() {
   useEffect(() => {
     authApi.sync().then(({ user }) => setCurrentUserId(user.id)).catch(() => undefined);
     familyApi.list().then(async (items) => {
+      if (items[0] && !items[0].inviteCode) {
+        items[0] = { ...items[0], inviteCode: await familyApi.inviteCode(items[0].id) };
+      }
       setFamilies(items);
       if (items[0]) setMembers(await familyApi.members(items[0].id));
     }).catch((exception: Error) => setError(exception.message));
