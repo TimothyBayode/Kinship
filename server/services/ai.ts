@@ -10,6 +10,12 @@ export class AiService {
   }
 
   async generate(input: { question: string; familyName: string; context: RetrievedContext[]; history?: Array<{ role: "user" | "assistant"; content: string }> }) {
+    if (/^(hi|hello|hey|good morning|good afternoon|good evening|good day)\b/i.test(input.question.trim())) {
+      return { content: "Hello. I’m Kinship, your family archive assistant. I can help you explore the people, memories, files, events, and relationships preserved in your family archive. Ask me about a person, place, story, or date.", sources: [] };
+    }
+    if (/what can you do|how can you help|who are you/i.test(input.question)) {
+      return { content: "I can search your family archive, connect people to memories and events, find details in uploaded files, and explain relationships using the evidence preserved in Kinship. I’ll tell you when the archive does not contain enough information.", sources: [] };
+    }
     if (!this.client) {
       if (this.config.NODE_ENV === "production") throw new Error("GEMINI_API_KEY is required in production");
       return {

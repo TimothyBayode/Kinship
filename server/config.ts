@@ -23,7 +23,7 @@ const schema = z.object({
   CLOUDINARY_CLOUD_NAME: optionalString,
   CLOUDINARY_UPLOAD_PRESET: optionalString,
   GEMINI_API_KEY: optionalString,
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.string().default("gemini-3.6-flash"),
   RESEND_API_KEY: optionalString,
   RESEND_FROM_EMAIL: z.string().default("Kinship <noreply@example.com>"),
 });

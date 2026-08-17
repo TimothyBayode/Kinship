@@ -18,8 +18,8 @@ const registerSchema = credentialsSchema.extend({ name: z.string().trim().min(2)
 const tokenSchema = z.object({ token: z.string().min(20) });
 const familySchema = z.object({ name: z.string().trim().min(2).max(100), pictureUrl: z.union([z.url(), z.literal("")]).optional().default("") });
 const chatSchema = z.object({ familyId: z.uuid(), question: z.string().trim().min(1).max(8_000), history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8_000) })).max(20).optional().default([]) });
-const profileSchema = z.object({ gender: z.enum(["female", "male", "non-binary", "prefer-not-to-say"]), phone: z.string().trim().min(7).max(30), birthday: z.iso.date() });
-const invitationSchema = z.object({ familyId: z.uuid(), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
+const profileSchema = z.object({ name: z.string().trim().min(2).max(80).optional(), gender: z.enum(["female", "male", "non-binary", "prefer-not-to-say"]).optional(), phone: z.string().trim().min(7).max(30).optional(), birthday: z.iso.date().optional(), avatarUrl: z.union([z.url(), z.literal("")]).optional() }).refine((value) => Object.keys(value).length > 0);
+const invitationSchema = z.object({ familyId: z.uuid(), fullName: z.string().trim().min(2).max(80), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
 const inviteCodeSchema = z.object({ code: z.string().trim().min(6).max(20).transform((value) => value.toUpperCase()) });
 const relationshipSchema = z.object({ relationship: z.string().trim().min(2).max(60) });
 const memorySchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), memoryDate: z.iso.date(), photos: z.array(z.url()).min(1).max(50) });
@@ -299,11 +299,15 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (!family || !["owner", "admin"].includes(family.role)) return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Only family stewards can invite members" } });
     const invitation = {
       id: crypto.randomUUID(), vertexId: randomVertexId(), code: createInviteCode(), familyId: family.id, familyName: family.name,
-      invitedBy: user.id, inviterName: user.name, invitedEmail: input.email.toLowerCase(), relationship: input.relationship,
+      invitedBy: user.id, inviterName: user.name, invitedName: input.fullName, invitedEmail: input.email.toLowerCase(), relationship: input.relationship,
       createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
     };
     await repository.createInvitation(invitation);
-    const delivery = input.email ? await email.sendFamilyInvitation(input.email, invitation) : { delivered: false };
+    let delivery: { delivered: boolean; previewUrl?: string; error?: string } = { delivered: false };
+    if (input.email) {
+      try { delivery = await email.sendFamilyInvitation(input.email, invitation); }
+      catch (error) { delivery = { delivered: false, error: error instanceof Error ? error.message : "Email delivery failed" }; }
+    }
     return reply.code(201).send({ invitation, delivery });
   });
 
@@ -373,7 +377,7 @@ async function getAuthenticatedUser(request: FastifyRequest, auth: AuthService, 
 }
 
 function toPublicUser(user: import("./domain.js").User) {
-  return { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt, gender: user.gender || "", phone: user.phone || "", birthday: user.birthday || "", profileComplete: Boolean(user.profileComplete) };
+  return { id: user.id, email: user.email, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt, gender: user.gender || "", phone: user.phone || "", birthday: user.birthday || "", profileComplete: Boolean(user.profileComplete), avatarUrl: user.avatarUrl || "" };
 }
 
 function createInviteCode() {

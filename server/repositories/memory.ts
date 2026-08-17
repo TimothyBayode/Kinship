@@ -17,7 +17,7 @@ export class MemoryRepository implements KinshipRepository {
 
   async createUser(input: CreateUser) {
     if ([...this.users.values()].some((user) => user.email === input.email)) throw new Error("EMAIL_EXISTS");
-    const user: User = { ...input, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false };
+    const user: User = { ...input, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false, avatarUrl: "" };
     this.users.set(user.id, user);
     return structuredClone(user);
   }
@@ -40,7 +40,7 @@ export class MemoryRepository implements KinshipRepository {
     if (user) this.users.set(id, { ...user, passwordHash });
   }
 
-  async updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">) {
+  async updateUserProfile(id: string, profile: Partial<Pick<User, "name" | "gender" | "phone" | "birthday" | "avatarUrl">>) {
     const user = this.users.get(id);
     if (!user) throw new Error("USER_NOT_FOUND");
     const updated = { ...user, ...profile, profileComplete: true };

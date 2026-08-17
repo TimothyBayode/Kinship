@@ -10,17 +10,17 @@ export class HydraDbRepository implements KinshipRepository {
   async createUser(user: CreateUser) {
     const existing = await this.findUserByEmail(user.email);
     if (existing) throw new Error("EMAIL_EXISTS");
-    const created = { ...user, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false };
+    const created = { ...user, emailVerified: false, gender: "", phone: "", birthday: "", profileComplete: false, avatarUrl: "" };
     await this.upsertVertex("User", created);
     return created;
   }
 
   async findUserByEmail(email: string) {
-    return this.readUser("MATCH (u:User) WHERE u.email = $email RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete LIMIT 1", { email });
+    return this.readUser("MATCH (u:User) WHERE u.email = $email RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete, u.avatarUrl AS avatarUrl LIMIT 1", { email });
   }
 
   async findUserById(id: string) {
-    return this.readUser("MATCH (u:User) WHERE u.appId = $id RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete LIMIT 1", { id });
+    return this.readUser("MATCH (u:User) WHERE u.appId = $id RETURN u.appId AS id, u.vertexId AS vertexId, u.email AS email, u.name AS name, u.passwordHash AS passwordHash, u.emailVerified AS emailVerified, u.createdAt AS createdAt, u.gender AS gender, u.phone AS phone, u.birthday AS birthday, u.profileComplete AS profileComplete, u.avatarUrl AS avatarUrl LIMIT 1", { id });
   }
 
   async verifyUser(id: string) {
@@ -31,8 +31,9 @@ export class HydraDbRepository implements KinshipRepository {
     await this.client.query("MATCH (u:User) WHERE u.appId = $id SET u.passwordHash = $passwordHash", { id, passwordHash });
   }
 
-  async updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">) {
-    await this.client.query("MATCH (u:User) WHERE u.appId = $id SET u.gender = $gender, u.phone = $phone, u.birthday = $birthday, u.profileComplete = true", { id, ...profile });
+  async updateUserProfile(id: string, profile: Partial<Pick<User, "name" | "gender" | "phone" | "birthday" | "avatarUrl">>) {
+    const assignments = Object.keys(profile).map((key) => `u.${key} = $${key}`).join(", ");
+    await this.client.query(`MATCH (u:User) WHERE u.appId = $id SET ${assignments}, u.profileComplete = true`, { id, ...profile });
     const user = await this.findUserById(id);
     if (!user) throw new Error("USER_NOT_FOUND");
     return user;
@@ -116,7 +117,7 @@ export class HydraDbRepository implements KinshipRepository {
   }
 
   async findInvitationByCode(code: string) {
-    const [row] = await this.client.query("MATCH (i:Invitation) WHERE i.code = $code RETURN i.appId AS id, i.vertexId AS vertexId, i.code AS code, i.familyId AS familyId, i.familyName AS familyName, i.invitedBy AS invitedBy, i.inviterName AS inviterName, i.invitedEmail AS invitedEmail, i.relationship AS relationship, i.expiresAt AS expiresAt, i.createdAt AS createdAt LIMIT 1", { code });
+    const [row] = await this.client.query("MATCH (i:Invitation) WHERE i.code = $code RETURN i.appId AS id, i.vertexId AS vertexId, i.code AS code, i.familyId AS familyId, i.familyName AS familyName, i.invitedBy AS invitedBy, i.inviterName AS inviterName, i.invitedName AS invitedName, i.invitedEmail AS invitedEmail, i.relationship AS relationship, i.expiresAt AS expiresAt, i.createdAt AS createdAt LIMIT 1", { code });
     return row ? row as Invitation : null;
   }
 

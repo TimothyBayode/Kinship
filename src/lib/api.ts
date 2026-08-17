@@ -8,6 +8,7 @@ export type ApiUser = {
   phone: string;
   birthday: string;
   profileComplete: boolean;
+  avatarUrl: string;
 };
 
 export type ApiFamily = {
@@ -170,7 +171,7 @@ export const familyApi = {
 };
 
 export const profileApi = {
-  async update(profile: { gender: string; phone: string; birthday: string }) {
+  async update(profile: Partial<{ name: string; gender: string; phone: string; birthday: string; avatarUrl: string }>) {
     return (await request<{ user: ApiUser }>("/api/profile", { method: "PATCH", body: JSON.stringify(profile) })).user;
   },
 };
@@ -209,8 +210,8 @@ export const fileApi = {
 };
 
 export const invitationApi = {
-  async create(input: { familyId: string; email: string; relationship: string }) {
-    return request<{ invitation: ApiInvitation; delivery: { delivered: boolean; previewUrl?: string } }>("/api/invitations", { method: "POST", body: JSON.stringify(input) });
+  async create(input: { familyId: string; fullName: string; email: string; relationship: string }) {
+    return request<{ invitation: ApiInvitation; delivery: { delivered: boolean; previewUrl?: string; error?: string } }>("/api/invitations", { method: "POST", body: JSON.stringify(input) });
   },
   async get(code: string) {
     return (await request<{ invitation: ApiInvitation }>(`/api/invitations/${encodeURIComponent(code)}`)).invitation;

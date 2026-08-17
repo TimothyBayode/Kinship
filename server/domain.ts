@@ -10,6 +10,7 @@ export type User = {
   phone: string;
   birthday: string;
   profileComplete: boolean;
+  avatarUrl: string;
 };
 
 export type Session = {
@@ -46,6 +47,7 @@ export type Invitation = {
   familyName: string;
   invitedBy: string;
   inviterName: string;
+  invitedName: string;
   invitedEmail: string;
   relationship: string;
   expiresAt: string;
@@ -149,7 +151,7 @@ export interface KinshipRepository {
   findUserById(id: string): Promise<User | null>;
   verifyUser(id: string): Promise<void>;
   updateUserPassword(id: string, passwordHash: string): Promise<void>;
-  updateUserProfile(id: string, profile: Pick<User, "gender" | "phone" | "birthday">): Promise<User>;
+  updateUserProfile(id: string, profile: Partial<Pick<User, "name" | "gender" | "phone" | "birthday" | "avatarUrl">>): Promise<User>;
   createSession(session: Session): Promise<void>;
   findSession(tokenHash: string): Promise<Session | null>;
   deleteSession(tokenHash: string): Promise<void>;
