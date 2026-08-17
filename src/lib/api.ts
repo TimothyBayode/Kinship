@@ -225,14 +225,28 @@ export const uploadApi = {
   async upload(file: File) {
     return (await this.uploadWithMetadata(file)).url;
   },
-  async uploadWithMetadata(file: File) {
+  async uploadWithMetadata(file: File, onProgress?: (percent: number) => void) {
     const config = await request<{ uploadUrl: string; uploadPreset: string }>("/api/uploads/cloudinary-config");
     const form = new FormData();
     form.set("file", file);
     form.set("upload_preset", config.uploadPreset);
-    const response = await fetch(config.uploadUrl, { method: "POST", body: form });
-    const result = await response.json().catch(() => null) as { secure_url?: string; bytes?: number; resource_type?: string; format?: string; error?: { message?: string } } | null;
-    if (!response.ok || !result?.secure_url) throw new Error(result?.error?.message ?? "Upload failed");
+    const result = await new Promise<{ secure_url?: string; bytes?: number; resource_type?: string; format?: string; error?: { message?: string } }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", config.uploadUrl);
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+      });
+      xhr.addEventListener("load", () => {
+        let body: { secure_url?: string; bytes?: number; resource_type?: string; format?: string; error?: { message?: string } };
+        try { body = JSON.parse(xhr.responseText) as typeof body; } catch { return reject(new Error("Upload returned an invalid response")); }
+        if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(body.error?.message ?? "Upload failed"));
+        onProgress?.(100);
+        resolve(body);
+      });
+      xhr.addEventListener("error", () => reject(new Error("Upload failed due to a network error")));
+      xhr.send(form);
+    });
+    if (!result.secure_url) throw new Error(result.error?.message ?? "Upload failed");
     return { url: result.secure_url, sizeBytes: result.bytes ?? file.size, resourceType: result.resource_type ?? "raw", format: result.format ?? "" };
   },
 };
