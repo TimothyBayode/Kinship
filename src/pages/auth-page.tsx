@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
 import { Button, Logo } from "@/components/kinship-ui";
-import { authApi } from "@/lib/api";
+import { authApi, setAccessToken } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { imageRefs } from "@/lib/types";
 
 const inputClass =
@@ -51,11 +52,7 @@ export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
   }, [mode]);
 
   useEffect(() => {
-    const token = searchParams.get("verify");
-    if (!token) return;
-    authApi.verifyEmail(token)
-      .then(() => setNotice("Email verified. You can sign in now."))
-      .catch((exception: Error) => setError(exception.message));
+    if (searchParams.get("verify")) setNotice("Check your email to confirm your account, then sign in.");
   }, [searchParams]);
 
   function switchMode(event: React.MouseEvent<HTMLAnchorElement>) {
@@ -70,8 +67,16 @@ export default function AuthPage({ mode }: { mode: "login" | "signup" }) {
     try {
       setError("");
       setSubmitting(true);
-      if (signup) await authApi.signUp(name, email, password);
-      else await authApi.signIn(email, password);
+      const result = signup
+        ? await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+        : await supabase.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+      if (!result.data.session) {
+        setNotice("Check your email to confirm your account, then sign in.");
+        return;
+      }
+      setAccessToken(result.data.session.access_token);
+      await authApi.sync();
       navigate("/activity");
     } catch (exception) {
       setError((exception as Error).message);

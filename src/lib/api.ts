@@ -16,13 +16,19 @@ export type ApiFamily = {
 
 type ApiErrorBody = { error?: { message?: string } };
 
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
     credentials: "include",
     headers: init?.body
-      ? { "content-type": "application/json", ...init.headers }
-      : init?.headers,
+      ? { "content-type": "application/json", ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}), ...init.headers }
+      : { ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}), ...init?.headers },
   });
 
   if (!response.ok) {
@@ -34,6 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const authApi = {
+  sync() {
+    return request<{ user: ApiUser }>("/api/auth/sync", { method: "POST" });
+  },
   async signUp(name: string, email: string, password: string) {
     await request("/api/auth/register", {
       method: "POST",

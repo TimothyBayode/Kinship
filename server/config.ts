@@ -11,6 +11,8 @@ const schema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default("kinship_session"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
   PASSWORD_PEPPER: z.string().min(32).default("development-only-pepper-change-me-now"),
+  SUPABASE_URL: optionalString,
+  SUPABASE_ANON_KEY: optionalString,
   DATA_PROVIDER: z.enum(["memory", "hydradb"]).default("memory"),
   HYDRADB_HTTP_URL: z.string().url().default("http://127.0.0.1:8443"),
   HYDRADB_AUTH_TOKEN: optionalString,
@@ -35,6 +37,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   }
   if (config.NODE_ENV === "production" && config.PASSWORD_PEPPER.startsWith("development-")) {
     throw new Error("PASSWORD_PEPPER must be replaced in production");
+  }
+  if (Boolean(config.SUPABASE_URL) !== Boolean(config.SUPABASE_ANON_KEY)) {
+    throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY must be configured together");
   }
   return config;
 }

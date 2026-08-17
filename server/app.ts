@@ -11,6 +11,7 @@ import { AuthError, AuthService } from "./services/auth.js";
 import { CloudinaryService } from "./services/cloudinary.js";
 import { EmailService } from "./services/email.js";
 import { RetrievalService } from "./services/retrieval.js";
+import { SupabaseAuthService } from "./services/supabase.js";
 
 const credentialsSchema = z.object({ email: z.email(), password: z.string().min(8).max(128) });
 const registerSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) });
@@ -25,6 +26,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   const cloudinary = new CloudinaryService(config);
   const ai = new AiService(config);
   const retrieval = new RetrievalService(repository);
+  const supabase = new SupabaseAuthService(config);
 
   await app.register(cookie);
   await app.register(cors, { origin: config.APP_ORIGIN, credentials: true, methods: ["GET", "POST", "DELETE", "OPTIONS"] });
@@ -62,7 +64,12 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
 
   app.get("/api/health", async () => {
     await repository.health();
-    return { status: "ok", dataProvider: config.DATA_PROVIDER };
+    return { status: "ok", dataProvider: config.DATA_PROVIDER, supabaseAuth: supabase.enabled };
+  });
+
+  app.post("/api/auth/sync", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    return user ? { user } : undefined;
   });
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
@@ -86,7 +93,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   });
 
   app.get("/api/auth/me", async (request, reply) => {
-    const user = await auth.authenticate(request.cookies[config.SESSION_COOKIE_NAME]);
+    const user = await getAuthenticatedUser(request, auth, supabase, repository, config);
     return user ? { user } : reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Authentication is required" } });
   });
 
@@ -109,13 +116,13 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   });
 
   app.get("/api/families", async (request, reply) => {
-    const user = await requireUser(request, reply, auth, config);
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     return { families: await repository.listFamiliesForUser(user.id) };
   });
 
   app.post("/api/families", async (request, reply) => {
-    const user = await requireUser(request, reply, auth, config);
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     const input = familySchema.parse(request.body);
     const family = { id: crypto.randomUUID(), vertexId: randomVertexId(), name: input.name, createdBy: user.id, createdAt: new Date().toISOString() };
@@ -124,13 +131,13 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   });
 
   app.get("/api/uploads/cloudinary-config", async (request, reply) => {
-    const user = await requireUser(request, reply, auth, config);
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     return cloudinary.getUnsignedUploadConfig();
   });
 
   app.post("/api/ai/chat", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
-    const user = await requireUser(request, reply, auth, config);
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
     if (!user) return;
     const input = chatSchema.parse(request.body);
     const family = await repository.findFamilyForUser(user.id, input.familyId);
@@ -142,13 +149,32 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
   return app;
 }
 
-async function requireUser(request: FastifyRequest, reply: FastifyReply, auth: AuthService, config: AppConfig) {
-  const user = await auth.authenticate(request.cookies[config.SESSION_COOKIE_NAME]);
+async function requireUser(request: FastifyRequest, reply: FastifyReply, auth: AuthService, supabase: SupabaseAuthService, repository: KinshipRepository, config: AppConfig) {
+  const user = await getAuthenticatedUser(request, auth, supabase, repository, config);
   if (!user) {
     await reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Authentication is required" } });
     return null;
   }
   return user;
+}
+
+async function getAuthenticatedUser(request: FastifyRequest, auth: AuthService, supabase: SupabaseAuthService, repository: KinshipRepository, config: AppConfig) {
+  const identity = await supabase.getIdentity(request.headers.authorization);
+  if (identity) {
+    const existing = await repository.findUserById(identity.id);
+    if (existing) return { id: existing.id, email: existing.email, name: existing.name, emailVerified: existing.emailVerified, createdAt: existing.createdAt };
+    const user = await repository.createUser({
+      id: identity.id,
+      vertexId: randomVertexId(),
+      email: identity.email,
+      name: identity.name,
+      // Supabase owns password verification; this placeholder is never used for bearer-token sessions.
+      passwordHash: "supabase-managed",
+      createdAt: identity.createdAt,
+    });
+    return { id: user.id, email: user.email, name: user.name, emailVerified: identity.emailVerified, createdAt: user.createdAt };
+  }
+  return auth.authenticate(request.cookies[config.SESSION_COOKIE_NAME]);
 }
 
 function setSessionCookie(reply: FastifyReply, config: AppConfig, token: string, expiresAt: string) {

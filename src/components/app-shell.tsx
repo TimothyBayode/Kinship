@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 
 import { Avatar, Logo } from "@/components/kinship-ui";
-import { authApi, type ApiUser } from "@/lib/api";
+import { authApi, setAccessToken, type ApiUser } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { user as demoUser } from "@/lib/types";
 
 const nav = [
@@ -38,10 +39,19 @@ export function AppShell() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    authApi.me()
-      .then(setUser)
-      .catch(() => navigate("/auth", { replace: true }))
-      .finally(() => setCheckingSession(false));
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return navigate("/auth", { replace: true });
+      setAccessToken(session.access_token);
+      try {
+        setUser((await authApi.sync()).user);
+      } catch {
+        navigate("/auth", { replace: true });
+      } finally {
+        setCheckingSession(false);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setAccessToken(session?.access_token ?? null));
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   useEffect(() => {
@@ -66,7 +76,8 @@ export function AppShell() {
 
   const logout = async () => {
     try {
-      await authApi.logout();
+      await supabase.auth.signOut();
+      setAccessToken(null);
     } finally {
       navigate("/auth", { replace: true });
     }
