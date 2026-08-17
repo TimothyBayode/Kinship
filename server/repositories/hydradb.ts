@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { CreateUser, Family, FamilyEvent, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -156,6 +156,17 @@ export class HydraDbRepository implements KinshipRepository {
     if (!(await this.findFamilyForUser(userId, familyId))) return [];
     const rows = await this.client.query("MATCH (e:Event) WHERE e.familyId = $familyId RETURN e.appId AS id, e.vertexId AS vertexId, e.familyId AS familyId, e.title AS title, e.description AS description, e.category AS category, e.eventDate AS eventDate, e.location AS location, e.imageUrl AS imageUrl, e.createdBy AS createdBy, e.createdAt AS createdAt ORDER BY e.eventDate", { familyId });
     return rows as FamilyEvent[];
+  }
+
+  async createFamilyFile(file: FamilyFileRecord) {
+    await this.upsertVertex("File", file);
+    return file;
+  }
+
+  async listFamilyFiles(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    const rows = await this.client.query("MATCH (x:File) WHERE x.familyId = $familyId RETURN x.appId AS id, x.vertexId AS vertexId, x.familyId AS familyId, x.name AS name, x.description AS description, x.mimeType AS mimeType, x.fileType AS fileType, x.sizeBytes AS sizeBytes, x.url AS url, x.uploadedBy AS uploadedBy, x.uploaderName AS uploaderName, x.createdAt AS createdAt ORDER BY x.createdAt DESC", { familyId });
+    return rows as FamilyFileRecord[];
   }
 
   async listSourceChunks(familyId: string, limit: number) {

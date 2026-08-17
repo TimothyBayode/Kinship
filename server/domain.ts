@@ -92,6 +92,21 @@ export type FamilyEvent = {
   createdAt: string;
 };
 
+export type FamilyFileRecord = {
+  id: string;
+  vertexId: number;
+  familyId: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  fileType: "PDF" | "Audio" | "Spreadsheet" | "Document" | "Image" | "Video" | "Other";
+  sizeBytes: number;
+  url: string;
+  uploadedBy: string;
+  uploaderName: string;
+  createdAt: string;
+};
+
 export type CreateUser = Pick<User, "id" | "vertexId" | "email" | "name" | "passwordHash" | "createdAt">;
 
 export interface KinshipRepository {
@@ -121,5 +136,7 @@ export interface KinshipRepository {
   appendMemoryPhotos(userId: string, familyId: string, memoryId: string, photos: string[]): Promise<MemoryAlbum | null>;
   createFamilyEvent(event: FamilyEvent): Promise<FamilyEvent>;
   listFamilyEvents(userId: string, familyId: string): Promise<FamilyEvent[]>;
+  createFamilyFile(file: FamilyFileRecord): Promise<FamilyFileRecord>;
+  listFamilyFiles(userId: string, familyId: string): Promise<FamilyFileRecord[]>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

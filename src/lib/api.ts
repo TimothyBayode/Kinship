@@ -64,6 +64,20 @@ export type ApiEvent = {
   createdAt: string;
 };
 
+export type ApiFile = {
+  id: string;
+  familyId: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  fileType: "PDF" | "Audio" | "Spreadsheet" | "Document" | "Image" | "Video" | "Other";
+  sizeBytes: number;
+  url: string;
+  uploadedBy: string;
+  uploaderName: string;
+  createdAt: string;
+};
+
 type ApiErrorBody = { error?: { message?: string } };
 
 let accessToken: string | null = null;
@@ -174,6 +188,15 @@ export const eventApi = {
   },
 };
 
+export const fileApi = {
+  async list(familyId: string) {
+    return (await request<{ files: ApiFile[] }>(`/api/files?familyId=${encodeURIComponent(familyId)}`)).files;
+  },
+  async create(input: Omit<ApiFile, "id" | "uploadedBy" | "uploaderName" | "createdAt">) {
+    return (await request<{ file: ApiFile }>("/api/files", { method: "POST", body: JSON.stringify(input) })).file;
+  },
+};
+
 export const invitationApi = {
   async create(input: { familyId: string; email: string; relationship: string }) {
     return request<{ invitation: ApiInvitation; delivery: { delivered: boolean; previewUrl?: string } }>("/api/invitations", { method: "POST", body: JSON.stringify(input) });
@@ -197,13 +220,16 @@ export const aiApi = {
 
 export const uploadApi = {
   async upload(file: File) {
+    return (await this.uploadWithMetadata(file)).url;
+  },
+  async uploadWithMetadata(file: File) {
     const config = await request<{ uploadUrl: string; uploadPreset: string }>("/api/uploads/cloudinary-config");
     const form = new FormData();
     form.set("file", file);
     form.set("upload_preset", config.uploadPreset);
     const response = await fetch(config.uploadUrl, { method: "POST", body: form });
-    const result = await response.json().catch(() => null) as { secure_url?: string; error?: { message?: string } } | null;
+    const result = await response.json().catch(() => null) as { secure_url?: string; bytes?: number; resource_type?: string; format?: string; error?: { message?: string } } | null;
     if (!response.ok || !result?.secure_url) throw new Error(result?.error?.message ?? "Upload failed");
-    return result.secure_url;
+    return { url: result.secure_url, sizeBytes: result.bytes ?? file.size, resourceType: result.resource_type ?? "raw", format: result.format ?? "" };
   },
 };

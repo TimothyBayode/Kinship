@@ -25,6 +25,7 @@ const relationshipSchema = z.object({ relationship: z.string().trim().min(2).max
 const memorySchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), memoryDate: z.iso.date(), photos: z.array(z.url()).min(1).max(50) });
 const memoryPhotosSchema = z.object({ familyId: z.uuid(), photos: z.array(z.url()).min(1).max(50) });
 const eventSchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), category: z.enum(["Birthday", "Gathering", "Anniversary", "Other"]), eventDate: z.iso.date(), location: z.string().trim().max(200), imageUrl: z.union([z.url(), z.literal("")]).default("") });
+const fileSchema = z.object({ familyId: z.uuid(), name: z.string().trim().min(1).max(240), description: z.string().trim().max(4_000), mimeType: z.string().trim().max(200), fileType: z.enum(["PDF", "Audio", "Spreadsheet", "Document", "Image", "Video", "Other"]), sizeBytes: z.number().int().nonnegative(), url: z.url() });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -219,6 +220,22 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     const event = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
     return reply.code(201).send({ event: await repository.createFamilyEvent(event) });
+  });
+
+  app.get("/api/files", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
+    return { files: await repository.listFamilyFiles(user.id, familyId) };
+  });
+
+  app.post("/api/files", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const input = fileSchema.parse(request.body);
+    if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    const file = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, uploadedBy: user.id, uploaderName: user.name, createdAt: new Date().toISOString() };
+    return reply.code(201).send({ file: await repository.createFamilyFile(file) });
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {

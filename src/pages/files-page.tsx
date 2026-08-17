@@ -1,186 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Filter, Plus } from "lucide-react";
+import { ChevronDown, Download, ExternalLink, FileText, Filter, Plus, Upload, X } from "lucide-react";
 
 import { Button, SectionTitle } from "@/components/kinship-ui";
-import { uploadApi } from "@/lib/api";
-import { familyFiles, type FamilyFile } from "@/lib/types";
+import { familyApi, fileApi, uploadApi, type ApiFile } from "@/lib/api";
+import { familyFiles } from "@/lib/types";
 
 const filters = ["All Files", "Documents", "Audio", "Spreadsheets", "PDFs"] as const;
 type FileFilter = (typeof filters)[number];
-
-const fileExtensions = {
-  PDF: "PDF",
-  Audio: "MP3",
-  Spreadsheet: "XLSX",
-  Document: "DOCX",
-};
-
-const fileBandColors = {
-  PDF: "bg-[#d84d4d]",
-  Audio: "bg-[#66735a]",
-  Spreadsheet: "bg-[#3f8b66]",
-  Document: "bg-[#4d78b8]",
-};
+type DisplayFile = ApiFile & { demo: boolean };
+const fileExtensions = { PDF: "PDF", Audio: "MP3", Spreadsheet: "XLSX", Document: "DOCX", Image: "IMG", Video: "VID", Other: "FILE" };
+const fileBandColors = { PDF: "bg-[#d84d4d]", Audio: "bg-[#66735a]", Spreadsheet: "bg-[#3f8b66]", Document: "bg-[#4d78b8]", Image: "bg-[#8c6fa8]", Video: "bg-[#9a6356]", Other: "bg-[#777]" };
 
 export default function FilesPage() {
-  const [filter, setFilter] = useState<FileFilter>("All Files");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<FamilyFile[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const filterMenuRef = useRef<HTMLDivElement>(null);
-  const uploadInputRef = useRef<HTMLInputElement>(null);
-  const visibleFiles = [...uploadedFiles, ...familyFiles].filter((file) => {
-    if (filter === "Documents") return file.type === "Document";
-    if (filter === "Audio") return file.type === "Audio";
-    if (filter === "Spreadsheets") return file.type === "Spreadsheet";
-    if (filter === "PDFs") return file.type === "PDF";
-    return true;
-  });
+  const [filter, setFilter] = useState<FileFilter>("All Files"); const [filterOpen, setFilterOpen] = useState(false); const [familyId, setFamilyId] = useState(""); const [live, setLive] = useState<ApiFile[]>([]); const [pending, setPending] = useState<File | null>(null); const [selected, setSelected] = useState<DisplayFile | null>(null); const [error, setError] = useState("");
+  const filterRef = useRef<HTMLDivElement>(null); const uploadRef = useRef<HTMLInputElement>(null);
+  const demo: DisplayFile[] = familyFiles.map((file) => ({ id: file.id, familyId: "", name: file.name, description: `Preserved ${file.type.toLowerCase()} from the family archive.`, mimeType: demoMime(file.type), fileType: file.type, sizeBytes: 0, url: "", uploadedBy: "", uploaderName: file.author, createdAt: file.updated.replace("Updated ", ""), demo: true }));
+  const all: DisplayFile[] = [...live.map((file) => ({ ...file, demo: false })), ...demo];
+  const visible = all.filter((file) => filter === "All Files" || (filter === "Documents" && file.fileType === "Document") || (filter === "Audio" && file.fileType === "Audio") || (filter === "Spreadsheets" && file.fileType === "Spreadsheet") || (filter === "PDFs" && file.fileType === "PDF"));
 
-  useEffect(() => {
-    if (!filterOpen) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!filterMenuRef.current?.contains(event.target as Node)) setFilterOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [filterOpen]);
+  useEffect(() => { familyApi.list().then(async (families) => { if (!families[0]) return; setFamilyId(families[0].id); setLive(await fileApi.list(families[0].id)); }).catch((exception: Error) => setError(exception.message)); }, []);
+  useEffect(() => { if (!filterOpen) return; const close = (event: PointerEvent) => { if (!filterRef.current?.contains(event.target as Node)) setFilterOpen(false); }; document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close); }, [filterOpen]);
 
-  const upload = async (file: File) => {
-    try {
-      setUploading(true);
-      setUploadError("");
-      await uploadApi.upload(file);
-      setUploadedFiles((current) => [{
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: fileType(file),
-        size: formatFileSize(file.size),
-        updated: "Uploaded just now",
-        author: "You",
-      }, ...current]);
-    } catch (error) {
-      setUploadError((error as Error).message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <section>
-      <div className="mb-12">
-        <SectionTitle title="Files">
-          <div className="flex flex-wrap gap-2">
-            <div className="relative" ref={filterMenuRef}>
-              <button
-                type="button"
-                className="surface inline-flex min-w-44 items-center justify-center gap-2 whitespace-nowrap rounded-md px-5 py-3 text-sm font-semibold text-foreground"
-                onClick={() => setFilterOpen((open) => !open)}
-                aria-haspopup="menu"
-                aria-expanded={filterOpen}
-              >
-                <Filter className="size-4" />
-                {filter}
-                <ChevronDown className={`size-4 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
-              </button>
-              {filterOpen && (
-                <div className="surface absolute right-0 top-full z-20 mt-2 w-52 rounded-xl p-2" role="menu">
-                  {filters.map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      className={`block w-full rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/5 ${filter === option ? "font-bold text-primary" : "font-medium"}`}
-                      onClick={() => {
-                        setFilter(option);
-                        setFilterOpen(false);
-                      }}
-                      role="menuitemradio"
-                      aria-checked={filter === option}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              ref={uploadInputRef}
-              type="file"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void upload(file);
-                event.target.value = "";
-              }}
-            />
-            <Button primary disabled={uploading} onClick={() => uploadInputRef.current?.click()}>
-              <Plus className="size-4" />
-              {uploading ? "Uploading..." : "Upload New File"}
-            </Button>
-          </div>
-        </SectionTitle>
-        {uploadError && <p role="alert" className="mt-3 text-sm text-destructive">{uploadError}</p>}
-      </div>
-
-      <div className="surface overflow-hidden rounded-2xl">
-        <div className="hidden grid-cols-[minmax(0,1.7fr)_150px_130px_180px] gap-4 border-b-[0.25px] border-[rgba(245,245,242,0.35)] px-6 py-4 text-xs font-bold uppercase tracking-[.14em] text-muted-foreground sm:grid">
-          <span>Name</span>
-          <span>Type</span>
-          <span>Size</span>
-          <span>Last Updated</span>
-        </div>
-        <div className="divide-y-[0.25px] divide-[rgba(245,245,242,0.35)]">
-          {visibleFiles.map((file) => {
-            return (
-              <article key={file.id} className="grid gap-4 px-5 py-5 sm:grid-cols-[minmax(0,1.7fr)_150px_130px_180px] sm:items-center sm:px-6">
-                <div className="flex min-w-0 items-center gap-4">
-                  <FileTypeIcon type={file.type} />
-                  <div className="min-w-0">
-                    <h2 className="truncate font-semibold">{file.name}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Added by {file.author}</p>
-                  </div>
-                </div>
-                <span className="text-sm text-muted-foreground">{file.type}</span>
-                <span className="text-sm text-muted-foreground">{file.size}</span>
-                <span className="text-sm text-muted-foreground">{file.updated}</span>
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
+  return <section><div className="mb-12"><SectionTitle title="Files"><div className="flex flex-wrap gap-2"><div className="relative" ref={filterRef}><button type="button" onClick={() => setFilterOpen(!filterOpen)} className="surface inline-flex min-w-44 items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold"><Filter className="size-4" />{filter}<ChevronDown className={`size-4 transition-transform ${filterOpen ? "rotate-180" : ""}`} /></button>{filterOpen && <div className="surface absolute right-0 top-full z-20 mt-2 w-52 rounded-xl p-2">{filters.map((option) => <button type="button" key={option} onClick={() => { setFilter(option); setFilterOpen(false); }} className={`block w-full rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/5 ${filter === option ? "font-bold text-primary" : "font-medium"}`}>{option}</button>)}</div>}</div><input ref={uploadRef} type="file" className="hidden" onChange={(event) => { setPending(event.target.files?.[0] ?? null); event.target.value = ""; }} /><Button primary disabled={!familyId} onClick={() => uploadRef.current?.click()}><Plus className="size-4" />Upload New File</Button></div></SectionTitle>{error && <p className="mt-3 text-sm text-destructive">{error}</p>}</div>
+    <div className="surface overflow-hidden rounded-2xl"><div className="hidden grid-cols-[minmax(0,1.7fr)_150px_130px_180px] gap-4 border-b-[0.25px] border-[rgba(245,245,242,0.35)] px-6 py-4 text-xs font-bold uppercase tracking-[.14em] text-muted-foreground sm:grid"><span>Name</span><span>Type</span><span>Size</span><span>Last Updated</span></div><div className="divide-y-[0.25px] divide-[rgba(245,245,242,0.35)]">{visible.map((file) => <button type="button" key={file.id} onClick={() => setSelected(file)} className="grid w-full gap-4 px-5 py-5 text-left hover:bg-primary/[.03] sm:grid-cols-[minmax(0,1.7fr)_150px_130px_180px] sm:items-center sm:px-6"><div className="flex min-w-0 items-center gap-4"><FileTypeIcon type={file.fileType} /><div className="min-w-0"><h2 className="truncate font-semibold">{file.name}</h2><p className="mt-1 text-sm text-muted-foreground">Added by {file.uploaderName}</p></div></div><span className="text-sm text-muted-foreground">{file.fileType}</span><span className="text-sm text-muted-foreground">{file.sizeBytes ? formatFileSize(file.sizeBytes) : "Demo"}</span><span className="text-sm text-muted-foreground">{file.demo ? file.createdAt : formatDateTime(file.createdAt)}</span></button>)}</div></div>
+    {pending && <FileUploadForm file={pending} familyId={familyId} onClose={() => setPending(null)} onCreated={(file) => { setLive((current) => [file, ...current]); setPending(null); }} />}{selected && <FileDetails file={selected} onClose={() => setSelected(null)} />}
+  </section>;
 }
 
-function fileType(file: File): FamilyFile["type"] {
-  if (file.type === "application/pdf") return "PDF";
-  if (file.type.startsWith("audio/")) return "Audio";
-  if (/spreadsheet|excel|csv/.test(file.type)) return "Spreadsheet";
-  return "Document";
-}
+function FileUploadForm({ file, familyId, onClose, onCreated }: { file: File; familyId: string; onClose: () => void; onCreated: (file: ApiFile) => void }) { const [description, setDescription] = useState(""); const [uploading, setUploading] = useState(false); const [error, setError] = useState(""); const save = async () => { try { setUploading(true); setError(""); const result = await uploadApi.uploadWithMetadata(file); onCreated(await fileApi.create({ familyId, name: file.name, description, mimeType: file.type || mimeFromName(file.name), fileType: classifyFile(file), sizeBytes: result.sizeBytes, url: result.url })); } catch (exception) { setError((exception as Error).message); } finally { setUploading(false); } }; return <Modal onClose={onClose}><div className="flex items-start justify-between"><div><h2 className="text-2xl font-semibold">Upload file</h2><p className="mt-1 text-sm text-muted-foreground">This file will be available to every family member.</p></div><button onClick={onClose}><X /></button></div><div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f5f5f2] p-4"><FileTypeIcon type={classifyFile(file)} /><div className="min-w-0"><p className="truncate font-semibold">{file.name}</p><p className="text-sm text-muted-foreground">{formatFileSize(file.size)}</p></div></div><label className="mt-6 block text-sm font-medium">Description <span className="font-normal text-muted-foreground">(optional)</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-2 min-h-28 w-full resize-y rounded-md border-0 bg-[#f5f5f2] p-4 outline-none focus:border-0 focus:outline-none focus:ring-0" placeholder="What is this file and why is it important?" /></label>{error && <p className="mt-4 text-sm text-destructive">{error}</p>}<Button primary disabled={uploading} onClick={save} className="mt-7 min-h-14 w-full"><Upload className="size-4" />{uploading ? "Uploading file..." : "Upload file"}</Button></Modal>; }
 
-function formatFileSize(bytes: number) {
-  return bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1_000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
-}
-
-function FileTypeIcon({ type }: { type: keyof typeof fileExtensions }) {
-  return (
-    <span className="relative grid size-11 shrink-0 place-items-end overflow-hidden rounded-md border border-foreground/15 bg-white shadow-[0_2px_8px_rgba(23,21,29,0.08)]">
-      <span className="absolute right-0 top-0 size-3 border-b border-l border-[#f5f5f2] bg-[#f5f5f2] [clip-path:polygon(0_0,100%_100%,0_100%)]" />
-      <span className={`absolute inset-x-0 bottom-2 grid h-4 place-items-center ${fileBandColors[type]} text-[7px] font-black tracking-[.04em] text-white`}>
-        {fileExtensions[type]}
-      </span>
-      <span className="mb-0.5 mr-1 text-[6px] font-bold text-muted-foreground/60">
-        FILE
-      </span>
-    </span>
-  );
-}
+function FileDetails({ file, onClose }: { file: DisplayFile; onClose: () => void }) { return <Modal onClose={onClose} wide><div className="flex items-start justify-between"><div className="flex items-center gap-4"><FileTypeIcon type={file.fileType} /><div><p className="text-xs font-bold uppercase text-primary">{file.fileType}</p><h2 className="mt-1 text-2xl font-semibold">{file.name}</h2></div></div><button onClick={onClose}><X /></button></div><div className="mt-6 grid gap-4 rounded-xl bg-[#f5f5f2] p-5 sm:grid-cols-3"><Detail label="Added by" value={file.uploaderName} /><Detail label="Size" value={file.sizeBytes ? formatFileSize(file.sizeBytes) : "Demo file"} /><Detail label="Added" value={file.demo ? file.createdAt : formatDateTime(file.createdAt)} /></div><p className="mt-6 leading-7 text-muted-foreground">{file.description || "No description was provided."}</p>{file.url ? <div className="mt-7"><FilePreview file={file} /><div className="mt-5 flex flex-wrap gap-3"><a href={file.url} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-white"><ExternalLink className="size-4" />Open file</a><a href={file.url} download className="inline-flex min-h-12 items-center gap-2 rounded-md bg-[#f5f5f2] px-5 text-sm font-semibold"><Download className="size-4" />Download</a></div></div> : <div className="mt-7 rounded-xl bg-[#f5f5f2] p-6 text-center text-sm text-muted-foreground">This demo file has no attached source file.</div>}</Modal>; }
+function FilePreview({ file }: { file: DisplayFile }) { if (file.mimeType.startsWith("audio/")) return <audio controls src={file.url} className="w-full" />; if (file.mimeType.startsWith("video/")) return <video controls src={file.url} className="max-h-[520px] w-full rounded-xl bg-black" />; if (file.mimeType.startsWith("image/")) return <img src={file.url} alt={file.name} className="max-h-[520px] w-full rounded-xl object-contain" />; if (file.mimeType === "application/pdf" || file.fileType === "PDF") return <iframe src={file.url} title={file.name} className="h-[520px] w-full rounded-xl bg-[#f5f5f2]" />; return <div className="grid min-h-52 place-items-center rounded-xl bg-[#f5f5f2]"><div className="text-center"><FileText className="mx-auto size-10 text-primary" /><p className="mt-3 text-sm text-muted-foreground">Open the file to view it in a compatible application.</p></div></div>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div><p className="text-xs font-bold uppercase text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>; }
+function Modal({ children, onClose, wide = false }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) { return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-foreground/25 p-4 backdrop-blur-sm" onClick={onClose}><div className={`my-6 w-full rounded-2xl bg-white p-6 shadow-xl sm:p-8 ${wide ? "max-w-5xl" : "max-w-xl"}`} onClick={(event) => event.stopPropagation()}>{children}</div></div>; }
+function classifyFile(file: File): ApiFile["fileType"] { if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) return "PDF"; if (file.type.startsWith("audio/")) return "Audio"; if (file.type.startsWith("image/")) return "Image"; if (file.type.startsWith("video/")) return "Video"; if (/spreadsheet|excel|csv/.test(file.type) || /\.(xlsx?|csv)$/i.test(file.name)) return "Spreadsheet"; if (/document|word|text/.test(file.type) || /\.(docx?|txt|md)$/i.test(file.name)) return "Document"; return "Other"; }
+function formatFileSize(bytes: number) { return bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1_000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`; } function formatDateTime(value: string) { return new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value)); } function mimeFromName(name: string) { if (/\.pdf$/i.test(name)) return "application/pdf"; if (/\.mp3$/i.test(name)) return "audio/mpeg"; if (/\.wav$/i.test(name)) return "audio/wav"; return "application/octet-stream"; } function demoMime(type: string) { if (type === "PDF") return "application/pdf"; if (type === "Audio") return "audio/mpeg"; if (type === "Spreadsheet") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"; }
+function FileTypeIcon({ type }: { type: keyof typeof fileExtensions }) { return <span className="relative grid size-11 shrink-0 place-items-end overflow-hidden rounded-md bg-white shadow-[0_2px_8px_rgba(23,21,29,0.08)]"><span className="absolute right-0 top-0 size-3 bg-[#f5f5f2] [clip-path:polygon(0_0,100%_100%,0_100%)]" /><span className={`absolute inset-x-0 bottom-2 grid h-4 place-items-center ${fileBandColors[type]} text-[7px] font-black text-white`}>{fileExtensions[type]}</span><span className="mb-0.5 mr-1 text-[6px] font-bold text-muted-foreground/60">FILE</span></span>; }
