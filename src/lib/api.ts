@@ -78,6 +78,14 @@ export type ApiFile = {
   createdAt: string;
 };
 
+export type ApiConversation = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+  messages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; sources?: Array<{ id: string; title: string; detail: string; type: "document" | "audio" | "photo"; excerpt: string; url?: string }>; error?: boolean }>;
+};
+
 type ApiErrorBody = { error?: { message?: string } };
 
 let accessToken: string | null = null;
@@ -213,11 +221,23 @@ export const invitationApi = {
 };
 
 export const aiApi = {
-  chat(familyId: string, question: string) {
-    return request<{ content: string; sources: Array<{ title: string; content: string; sourceId: string }> }>("/api/ai/chat", {
+  chat(familyId: string, question: string, history: Array<{ role: "user" | "assistant"; content: string }> = []) {
+    return request<{ content: string; sources: Array<{ title: string; content: string; sourceId: string; sourceType: "memory" | "event" | "file" | "person"; sourceUrl: string; detail: string }> }>("/api/ai/chat", {
       method: "POST",
-      body: JSON.stringify({ familyId, question }),
+      body: JSON.stringify({ familyId, question, history }),
     });
+  },
+};
+
+export const conversationApi = {
+  async list(familyId: string) {
+    return (await request<{ conversations: ApiConversation[] }>(`/api/conversations?familyId=${encodeURIComponent(familyId)}`)).conversations;
+  },
+  async save(familyId: string, conversation: ApiConversation) {
+    return (await request<{ conversation: ApiConversation }>(`/api/conversations/${conversation.id}`, { method: "PUT", body: JSON.stringify({ familyId, ...conversation }) })).conversation;
+  },
+  delete(conversationId: string, familyId: string) {
+    return request<void>(`/api/conversations/${conversationId}?familyId=${encodeURIComponent(familyId)}`, { method: "DELETE" });
   },
 };
 

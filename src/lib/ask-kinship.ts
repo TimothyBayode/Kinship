@@ -4,6 +4,7 @@ export type AskSource = {
   detail: string;
   type: "document" | "audio" | "photo";
   excerpt: string;
+  url?: string;
 };
 
 export type AskMessage = {
@@ -20,11 +21,12 @@ export type AskConversation = {
   title: string;
   dateGroup: "Today" | "Yesterday" | "Previous 7 Days" | "Older";
   updatedAt: string;
+  createdAt: string;
   context: string;
   messages: AskMessage[];
 };
 
-const STORAGE_KEY = "kinship.ask-conversations";
+import { conversationApi } from "@/lib/api";
 
 const sources: Record<string, AskSource[]> = {
   joe: [
@@ -48,6 +50,7 @@ const seedConversations: AskConversation[] = [
     title: "Joe's War Experience",
     dateGroup: "Today",
     updatedAt: "2026-08-15T11:30:00.000Z",
+    createdAt: "2026-08-15T11:29:00.000Z",
     context: 'Samuel "Joe" Adeyemi',
     messages: [
       { id: "m1", role: "user", content: "What was Grandpa Joe like during the war?", createdAt: "2026-08-15T11:29:00.000Z" },
@@ -59,6 +62,7 @@ const seedConversations: AskConversation[] = [
     title: "Grandma's Childhood",
     dateGroup: "Today",
     updatedAt: "2026-08-15T09:10:00.000Z",
+    createdAt: "2026-08-15T09:09:00.000Z",
     context: "Grandma Grace",
     messages: [
       { id: "m3", role: "user", content: "Where did Grandma Grace grow up?", createdAt: "2026-08-15T09:09:00.000Z" },
@@ -70,63 +74,39 @@ const seedConversations: AskConversation[] = [
     title: "Family Recipes",
     dateGroup: "Yesterday",
     updatedAt: "2026-08-14T16:00:00.000Z",
+    createdAt: "2026-08-14T15:59:00.000Z",
     context: "Entire Bayode Family",
     messages: [
       { id: "m5", role: "user", content: "Which recipes did Grandma Grace preserve?", createdAt: "2026-08-14T15:59:00.000Z" },
       { id: "m6", role: "assistant", content: "The archive contains three recipes directly attributed to Grace: her Sunday tomato sauce, lemon cake, and handwritten holiday stuffing. Sarah's recording adds useful details that are missing from the written measurements.", createdAt: "2026-08-14T16:00:00.000Z", sources: sources.recipes },
     ],
   },
-  { id: "family-farm", title: "The Family Farm", dateGroup: "Yesterday", updatedAt: "2026-08-14T10:00:00.000Z", context: "Entire Bayode Family", messages: [{ id: "m7", role: "user", content: "Tell me about the family farm.", createdAt: "2026-08-14T09:59:00.000Z" }, { id: "m8", role: "assistant", content: "The farm entered the family in 1931 and became both a livelihood and gathering place. Photographs show three generations working the western field together.", createdAt: "2026-08-14T10:00:00.000Z", sources: sources.farm }] },
-  { id: "who-samuel", title: "Who Was Samuel?", dateGroup: "Previous 7 Days", updatedAt: "2026-08-11T12:00:00.000Z", context: "Entire Bayode Family", messages: [] },
-  { id: "origins", title: "Our Family Origins", dateGroup: "Older", updatedAt: "2026-07-20T12:00:00.000Z", context: "Entire Bayode Family", messages: [] },
+  { id: "family-farm", title: "The Family Farm", dateGroup: "Yesterday", updatedAt: "2026-08-14T10:00:00.000Z", createdAt: "2026-08-14T09:59:00.000Z", context: "Entire Bayode Family", messages: [{ id: "m7", role: "user", content: "Tell me about the family farm.", createdAt: "2026-08-14T09:59:00.000Z" }, { id: "m8", role: "assistant", content: "The farm entered the family in 1931 and became both a livelihood and gathering place. Photographs show three generations working the western field together.", createdAt: "2026-08-14T10:00:00.000Z", sources: sources.farm }] },
+  { id: "who-samuel", title: "Who Was Samuel?", dateGroup: "Previous 7 Days", updatedAt: "2026-08-11T12:00:00.000Z", createdAt: "2026-08-11T12:00:00.000Z", context: "Entire Bayode Family", messages: [] },
+  { id: "origins", title: "Our Family Origins", dateGroup: "Older", updatedAt: "2026-07-20T12:00:00.000Z", createdAt: "2026-07-20T12:00:00.000Z", context: "Entire Bayode Family", messages: [] },
 ];
 
-function cloneSeed() {
-  return structuredClone(seedConversations);
-}
-
-function readConversations(): AskConversation[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : cloneSeed();
-  } catch {
-    return cloneSeed();
-  }
-}
-
-function writeConversations(conversations: AskConversation[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-  return conversations;
-}
-
 export const conversationService = {
-  async list() {
-    return readConversations();
+  async list(familyId: string, familyName: string) {
+    const conversations = await conversationApi.list(familyId);
+    return conversations.map((conversation) => ({ ...conversation, context: familyName, dateGroup: dateGroup(conversation.updatedAt) })) as AskConversation[];
   },
-  async get(id: string) {
-    return readConversations().find((conversation) => conversation.id === id) ?? null;
+  async update(conversation: AskConversation, familyId: string) {
+    return conversationApi.save(familyId, conversation);
   },
-  async create() {
-    const conversation: AskConversation = { id: crypto.randomUUID(), title: "New conversation", dateGroup: "Today", updatedAt: new Date().toISOString(), context: "Entire Bayode Family", messages: [] };
-    writeConversations([conversation, ...readConversations()]);
-    return conversation;
+  async rename(conversation: AskConversation, title: string, familyId: string, familyName: string) {
+    await conversationApi.save(familyId, { ...conversation, title });
+    return this.list(familyId, familyName);
   },
-  async update(conversation: AskConversation) {
-    const conversations = readConversations();
-    const next = conversations.some((item) => item.id === conversation.id)
-      ? conversations.map((item) => item.id === conversation.id ? conversation : item)
-      : [conversation, ...conversations];
-    writeConversations(next);
-    return conversation;
-  },
-  async rename(id: string, title: string) {
-    const conversations = readConversations().map((conversation) => conversation.id === id ? { ...conversation, title } : conversation);
-    writeConversations(conversations);
-    return conversations;
-  },
-  async delete(id: string) {
-    const conversations = readConversations().filter((conversation) => conversation.id !== id);
-    writeConversations(conversations);
-    return conversations;
+  async delete(id: string, familyId: string, familyName: string) {
+    await conversationApi.delete(id, familyId);
+    return this.list(familyId, familyName);
   },
 };
+
+function dateGroup(value: string): AskConversation["dateGroup"] {
+  const days = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return days <= 7 ? "Previous 7 Days" : "Older";
+}

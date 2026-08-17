@@ -59,11 +59,15 @@ export type FamilyMember = Pick<User, "id" | "name" | "email" | "gender" | "birt
 
 export type SourceChunk = {
   id: string;
+  vertexId: number;
   title: string;
   content: string;
   sourceId: string;
   familyId: string;
   createdAt: string;
+  sourceType: "memory" | "event" | "file" | "person";
+  sourceUrl: string;
+  detail: string;
 };
 
 export type MemoryAlbum = {
@@ -107,6 +111,35 @@ export type FamilyFileRecord = {
   createdAt: string;
 };
 
+export type ChatSource = {
+  id: string;
+  title: string;
+  detail: string;
+  type: "document" | "audio" | "photo";
+  excerpt: string;
+  url: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  sources?: ChatSource[];
+  error?: boolean;
+};
+
+export type ChatConversation = {
+  id: string;
+  vertexId: number;
+  familyId: string;
+  userId: string;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+  messages: ChatMessage[];
+};
+
 export type CreateUser = Pick<User, "id" | "vertexId" | "email" | "name" | "passwordHash" | "createdAt">;
 
 export interface KinshipRepository {
@@ -139,5 +172,9 @@ export interface KinshipRepository {
   createFamilyFile(file: FamilyFileRecord): Promise<FamilyFileRecord>;
   listFamilyFiles(userId: string, familyId: string): Promise<FamilyFileRecord[]>;
   renameFamilyFile(userId: string, familyId: string, fileId: string, name: string): Promise<FamilyFileRecord | null>;
+  createSourceChunk(chunk: SourceChunk): Promise<SourceChunk>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
+  saveConversation(conversation: ChatConversation): Promise<ChatConversation>;
+  listConversations(userId: string, familyId: string): Promise<ChatConversation[]>;
+  deleteConversation(userId: string, familyId: string, conversationId: string): Promise<void>;
 }

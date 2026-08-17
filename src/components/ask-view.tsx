@@ -45,8 +45,10 @@ export function AskView() {
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
 
   useEffect(() => {
-    conversationService.list().then(setConversations);
-    familyApi.list().then(setFamilies).catch((error: Error) => setFamilyError(error.message));
+    familyApi.list().then(async (items) => {
+      setFamilies(items);
+      if (items[0]) setConversations(await conversationService.list(items[0].id, items[0].name));
+    }).catch((error: Error) => setFamilyError(error.message));
   }, []);
 
   const startNew = () => {
@@ -65,6 +67,7 @@ export function AskView() {
         title: question.trim().split(/\s+/).slice(0, 5).join(" "),
         dateGroup: "Today",
         updatedAt: now,
+        createdAt: now,
         context: "Entire Bayode Family",
         messages: [],
       };
@@ -79,7 +82,8 @@ export function AskView() {
     try {
       const family = families[0];
       if (!family) throw new Error("Create a family archive before asking Kinship.");
-      const response = await aiApi.chat(family.id, question);
+      const history = pending.messages.slice(0, -1).map((message) => ({ role: message.role, content: message.content }));
+      const response = await aiApi.chat(family.id, question, history);
       const createdAt = new Date().toISOString();
       const complete: AskConversation = {
         ...pending,
@@ -89,12 +93,12 @@ export function AskView() {
           id: crypto.randomUUID(),
           role: "assistant",
           content: response.content,
-          sources: response.sources.map((item) => ({ id: item.sourceId, title: item.title, detail: "Family archive", type: "document" as const, excerpt: item.content })),
+          sources: response.sources.map((item) => ({ id: item.sourceId, title: item.title, detail: item.detail || "Family archive", type: sourceType(item.sourceType, item.detail, item.sourceUrl), excerpt: item.content, url: item.sourceUrl })),
           createdAt,
         }],
       };
       setConversations((current) => [complete, ...current.filter((item) => item.id !== complete.id)]);
-      await conversationService.update(complete);
+      await conversationService.update(complete, family.id);
     } catch (error) {
       const failed: AskConversation = {
         ...pending,
@@ -111,7 +115,7 @@ export function AskView() {
     if (!activeConversation) return;
     const updated = { ...activeConversation, context: "Entire Bayode Family" };
     setConversations((current) => current.map((item) => item.id === updated.id ? updated : item));
-    await conversationService.update(updated);
+    if (families[0]) await conversationService.update(updated, families[0].id);
   };
 
   return (
@@ -142,13 +146,13 @@ export function AskView() {
       </main>
 
       <div className={`hidden shrink-0 overflow-hidden rounded-tl-xl bg-white transition-[width] duration-200 lg:block ${historyOpen ? "w-[28%] min-w-[330px] max-w-[430px]" : "w-0"}`}>
-        <ChatHistory conversations={conversations} activeId={activeId} onSelect={setActiveId} onNew={startNew} onClose={() => setHistoryOpen(false)} onChange={setConversations} />
+        <ChatHistory conversations={conversations} activeId={activeId} family={families[0]} onSelect={setActiveId} onNew={startNew} onClose={() => setHistoryOpen(false)} onChange={setConversations} />
       </div>
 
       {mobileHistoryOpen && (
         <div className="fixed inset-0 z-50 bg-foreground/15 backdrop-blur-sm lg:hidden" onClick={() => setMobileHistoryOpen(false)}>
           <div className="ml-auto h-full w-[min(88vw,380px)] rounded-tl-xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <ChatHistory conversations={conversations} activeId={activeId} onSelect={(id) => { setActiveId(id); setMobileHistoryOpen(false); }} onNew={startNew} onClose={() => setMobileHistoryOpen(false)} onChange={setConversations} />
+            <ChatHistory conversations={conversations} activeId={activeId} family={families[0]} onSelect={(id) => { setActiveId(id); setMobileHistoryOpen(false); }} onNew={startNew} onClose={() => setMobileHistoryOpen(false)} onChange={setConversations} />
           </div>
         </div>
       )}
@@ -266,7 +270,7 @@ function TypingIndicator() {
   return <div><p className="flex items-center gap-2 text-xs font-bold uppercase text-primary"><Sparkles className="size-3.5" />Kinship</p><div className="mt-3 flex items-center gap-1 text-sm text-[#6b6b6b]"><span>Thinking</span><span className="animate-pulse">...</span></div></div>;
 }
 
-function ChatHistory({ conversations, activeId, onSelect, onNew, onClose, onChange }: { conversations: AskConversation[]; activeId: string | null; onSelect: (id: string) => void; onNew: () => void; onClose: () => void; onChange: (conversations: AskConversation[]) => void }) {
+function ChatHistory({ conversations, activeId, family, onSelect, onNew, onClose, onChange }: { conversations: AskConversation[]; activeId: string | null; family?: ApiFamily; onSelect: (id: string) => void; onNew: () => void; onClose: () => void; onChange: (conversations: AskConversation[]) => void }) {
   const [query, setQuery] = useState("");
   const filtered = conversations.filter((conversation) => conversation.title.toLowerCase().includes(query.toLowerCase()));
   const groups = ["Today", "Yesterday", "Previous 7 Days", "Older"] as const;
@@ -277,28 +281,34 @@ function ChatHistory({ conversations, activeId, onSelect, onNew, onClose, onChan
       <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-5">
         {filtered.length ? groups.map((group) => {
           const items = filtered.filter((conversation) => conversation.dateGroup === group);
-          return items.length ? <section key={group} className="mt-5 first:mt-0"><h3 className="px-2 text-[11px] font-bold uppercase text-[#858585]">{group}</h3><div className="mt-2 space-y-1">{items.map((conversation) => <ChatHistoryItem key={conversation.id} conversation={conversation} active={conversation.id === activeId} onSelect={() => onSelect(conversation.id)} onChange={onChange} />)}</div></section> : null;
+          return items.length ? <section key={group} className="mt-5 first:mt-0"><h3 className="px-2 text-[11px] font-bold uppercase text-[#858585]">{group}</h3><div className="mt-2 space-y-1">{items.map((conversation) => <ChatHistoryItem key={conversation.id} conversation={conversation} family={family} active={conversation.id === activeId} onSelect={() => onSelect(conversation.id)} onChange={onChange} />)}</div></section> : null;
         }) : <div className="px-3 py-12 text-center"><p className="font-semibold">No conversations found</p><p className="mt-2 text-sm leading-6 text-[#6b6b6b]">Ask Kinship about your family's stories, people, or memories.</p></div>}
       </div>
     </aside>
   );
 }
 
-function ChatHistoryItem({ conversation, active, onSelect, onChange }: { conversation: AskConversation; active: boolean; onSelect: () => void; onChange: (conversations: AskConversation[]) => void }) {
+function ChatHistoryItem({ conversation, family, active, onSelect, onChange }: { conversation: AskConversation; family?: ApiFamily; active: boolean; onSelect: () => void; onChange: (conversations: AskConversation[]) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(conversation.title);
-  const saveRename = async () => { const next = title.trim() || conversation.title; setTitle(next); setRenaming(false); setMenuOpen(false); onChange(await conversationService.rename(conversation.id, next)); };
+  const saveRename = async () => { const next = title.trim() || conversation.title; setTitle(next); setRenaming(false); setMenuOpen(false); if (family) onChange(await conversationService.rename(conversation, next, family.id, family.name)); };
   return (
     <div className={`group relative rounded-md ${active ? "bg-[#f2f5ef]" : "hover:bg-[#f7f8f6]"}`}>
       {renaming ? <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} onBlur={saveRename} onKeyDown={(event) => { if (event.key === "Enter") saveRename(); if (event.key === "Escape") setRenaming(false); }} className="w-full rounded-md bg-white px-3 py-3 pr-10 text-sm font-semibold outline-none ring-1 ring-primary/30" /> : <button type="button" onClick={onSelect} className={`w-full truncate px-3 py-3 pr-10 text-left text-sm font-semibold ${active ? "text-primary" : ""}`}>{conversation.title}</button>}
       {!renaming && <button type="button" onClick={() => setMenuOpen((open) => !open)} className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 opacity-70 hover:bg-white group-hover:opacity-100" aria-label={`Actions for ${conversation.title}`}><MoreHorizontal className="size-4" /></button>}
-      {menuOpen && <div className="surface absolute right-2 top-10 z-20 w-32 rounded-lg p-1"><button type="button" onClick={() => { setRenaming(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-[#f2f5ef]"><Pencil className="size-3.5" />Rename</button><button type="button" onClick={async () => onChange(await conversationService.delete(conversation.id))} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><Trash2 className="size-3.5" />Delete</button></div>}
+      {menuOpen && <div className="surface absolute right-2 top-10 z-20 w-32 rounded-lg p-1"><button type="button" onClick={() => { setRenaming(true); setMenuOpen(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-[#f2f5ef]"><Pencil className="size-3.5" />Rename</button><button type="button" onClick={async () => { if (family) onChange(await conversationService.delete(conversation.id, family.id, family.name)); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/5"><Trash2 className="size-3.5" />Delete</button></div>}
     </div>
   );
 }
 
 function SourcePreview({ source, onClose }: { source: AskSource; onClose: () => void }) {
   const Icon = source.type === "audio" ? Volume2 : source.type === "photo" ? Image : FileText;
-  return <div className="fixed inset-0 z-[60] grid place-items-center bg-foreground/15 p-4 backdrop-blur-sm" onClick={onClose}><div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true"><div className="flex items-start justify-between gap-4"><span className="grid size-11 place-items-center rounded-md bg-[#f2f5ef] text-primary"><Icon className="size-5" /></span><button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-[#f2f5ef]" aria-label="Close source"><X className="size-5" /></button></div><h2 className="mt-5 text-xl font-bold">{source.title}</h2><p className="mt-1 text-sm text-[#6b6b6b]">{source.detail}</p><p className="mt-5 leading-7">{source.excerpt}</p></div></div>;
+  return <div className="fixed inset-0 z-[60] grid place-items-center bg-foreground/15 p-4 backdrop-blur-sm" onClick={onClose}><div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true"><div className="flex items-start justify-between gap-4"><span className="grid size-11 place-items-center rounded-md bg-[#f2f5ef] text-primary"><Icon className="size-5" /></span><button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-[#f2f5ef]" aria-label="Close source"><X className="size-5" /></button></div><h2 className="mt-5 text-xl font-bold">{source.title}</h2><p className="mt-1 text-sm text-[#6b6b6b]">{source.detail}</p>{source.type === "photo" && source.url && <img src={source.url} alt={source.title} className="mt-5 max-h-64 w-full rounded-lg object-contain" />}{source.type === "audio" && source.url && <audio controls src={source.url} className="mt-5 w-full" />}<p className="mt-5 leading-7">{source.excerpt}</p>{source.url && source.type === "document" && <a href={source.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Open source</a>}</div></div>;
+}
+
+function sourceType(type: "memory" | "event" | "file" | "person", detail: string, url: string): AskSource["type"] {
+  if (type === "file" && detail === "Audio") return "audio";
+  if ((type === "memory" || type === "event" || (type === "file" && detail === "Image")) && url) return "photo";
+  return "document";
 }

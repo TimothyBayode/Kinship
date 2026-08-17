@@ -1,4 +1,4 @@
-import type { CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 
 export class MemoryRepository implements KinshipRepository {
   private users = new Map<string, User>();
@@ -11,6 +11,7 @@ export class MemoryRepository implements KinshipRepository {
   private memoryAlbums = new Map<string, MemoryAlbum>();
   private familyEvents = new Map<string, FamilyEvent>();
   private familyFiles = new Map<string, FamilyFileRecord>();
+  private conversations = new Map<string, ChatConversation>();
 
   async health() {}
 
@@ -164,6 +165,25 @@ export class MemoryRepository implements KinshipRepository {
     const updated = { ...file, name };
     this.familyFiles.set(fileId, updated);
     return structuredClone(updated);
+  }
+
+  async createSourceChunk(chunk: SourceChunk) {
+    this.sourceChunks.push(structuredClone(chunk));
+    return structuredClone(chunk);
+  }
+
+  async saveConversation(conversation: ChatConversation) {
+    this.conversations.set(conversation.id, structuredClone(conversation));
+    return structuredClone(conversation);
+  }
+
+  async listConversations(userId: string, familyId: string) {
+    return structuredClone([...this.conversations.values()].filter((item) => item.userId === userId && item.familyId === familyId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }
+
+  async deleteConversation(userId: string, familyId: string, conversationId: string) {
+    const conversation = this.conversations.get(conversationId);
+    if (conversation?.userId === userId && conversation.familyId === familyId) this.conversations.delete(conversationId);
   }
 
   async listSourceChunks(familyId: string, limit: number) {

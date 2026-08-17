@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -177,8 +177,30 @@ export class HydraDbRepository implements KinshipRepository {
     return (await this.listFamilyFiles(userId, familyId)).find((file) => file.id === fileId) ?? null;
   }
 
+  async createSourceChunk(chunk: SourceChunk) {
+    await this.upsertVertex("SourceChunk", chunk);
+    return chunk;
+  }
+
+  async saveConversation(conversation: ChatConversation) {
+    const [existing] = await this.client.query("MATCH (c:Conversation) WHERE c.appId = $id AND c.userId = $userId AND c.familyId = $familyId RETURN c.vertexId AS vertexId", { id: conversation.id, userId: conversation.userId, familyId: conversation.familyId });
+    if (existing?.vertexId) conversation.vertexId = existing.vertexId as number;
+    const { messages, ...properties } = conversation;
+    await this.upsertVertex("Conversation", { ...properties, messagesJson: JSON.stringify(messages) });
+    return conversation;
+  }
+
+  async listConversations(userId: string, familyId: string) {
+    const rows = await this.client.query("MATCH (c:Conversation) WHERE c.userId = $userId AND c.familyId = $familyId RETURN c.appId AS id, c.vertexId AS vertexId, c.familyId AS familyId, c.userId AS userId, c.title AS title, c.updatedAt AS updatedAt, c.createdAt AS createdAt, c.messagesJson AS messagesJson ORDER BY c.updatedAt DESC", { userId, familyId });
+    return rows.map((row) => ({ ...row, messages: parseMessages(row.messagesJson) })) as ChatConversation[];
+  }
+
+  async deleteConversation(userId: string, familyId: string, conversationId: string) {
+    await this.client.query("MATCH (c:Conversation) WHERE c.appId = $conversationId AND c.userId = $userId AND c.familyId = $familyId DETACH DELETE c", { conversationId, userId, familyId });
+  }
+
   async listSourceChunks(familyId: string, limit: number) {
-    const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });
+    const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.vertexId AS vertexId, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt, c.sourceType AS sourceType, c.sourceUrl AS sourceUrl, c.detail AS detail ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });
     return rows as SourceChunk[];
   }
 
@@ -195,6 +217,11 @@ export class HydraDbRepository implements KinshipRepository {
 function parsePhotos(value: unknown) {
   if (typeof value !== "string") return [];
   try { return JSON.parse(value) as string[]; } catch { return []; }
+}
+
+function parseMessages(value: unknown) {
+  if (typeof value !== "string") return [];
+  try { return JSON.parse(value) as ChatConversation["messages"]; } catch { return []; }
 }
 
 export function randomVertexId() {

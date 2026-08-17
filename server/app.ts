@@ -17,7 +17,7 @@ const credentialsSchema = z.object({ email: z.email(), password: z.string().min(
 const registerSchema = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) });
 const tokenSchema = z.object({ token: z.string().min(20) });
 const familySchema = z.object({ name: z.string().trim().min(2).max(100), pictureUrl: z.union([z.url(), z.literal("")]).optional().default("") });
-const chatSchema = z.object({ familyId: z.uuid(), question: z.string().trim().min(1).max(8_000) });
+const chatSchema = z.object({ familyId: z.uuid(), question: z.string().trim().min(1).max(8_000), history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8_000) })).max(20).optional().default([]) });
 const profileSchema = z.object({ gender: z.enum(["female", "male", "non-binary", "prefer-not-to-say"]), phone: z.string().trim().min(7).max(30), birthday: z.iso.date() });
 const invitationSchema = z.object({ familyId: z.uuid(), email: z.union([z.email(), z.literal("")]).optional().default(""), relationship: z.string().trim().min(2).max(60) });
 const inviteCodeSchema = z.object({ code: z.string().trim().min(6).max(20).transform((value) => value.toUpperCase()) });
@@ -27,6 +27,7 @@ const memoryPhotosSchema = z.object({ familyId: z.uuid(), photos: z.array(z.url(
 const eventSchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), category: z.enum(["Birthday", "Gathering", "Anniversary", "Other"]), eventDate: z.iso.date(), location: z.string().trim().max(200), imageUrl: z.union([z.url(), z.literal("")]).default("") });
 const fileSchema = z.object({ familyId: z.uuid(), name: z.string().trim().min(1).max(240), description: z.string().trim().max(4_000), mimeType: z.string().trim().max(200), fileType: z.enum(["PDF", "Audio", "Spreadsheet", "Document", "Image", "Video", "Other"]), sizeBytes: z.number().int().nonnegative(), url: z.url() });
 const fileRenameSchema = z.object({ familyId: z.uuid(), name: z.string().trim().min(1).max(240) });
+const conversationSchema = z.object({ familyId: z.uuid(), id: z.uuid(), title: z.string().trim().min(1).max(120), updatedAt: z.iso.datetime(), createdAt: z.iso.datetime(), messages: z.array(z.object({ id: z.uuid(), role: z.enum(["user", "assistant"]), content: z.string().max(20_000), createdAt: z.iso.datetime(), sources: z.array(z.object({ id: z.string(), title: z.string(), detail: z.string(), type: z.enum(["document", "audio", "photo"]), excerpt: z.string(), url: z.string() })).optional(), error: z.boolean().optional() })).max(200) });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -195,7 +196,9 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = memorySchema.parse(request.body);
     if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     const album = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
-    return reply.code(201).send({ memory: await repository.createMemoryAlbum(album) });
+    const memory = await repository.createMemoryAlbum(album);
+    await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: memory.title, content: `${memory.description}\nMemory date: ${memory.memoryDate}.`, sourceId: memory.id, familyId: memory.familyId, createdAt: memory.createdAt, sourceType: "memory", sourceUrl: memory.photos[0] ?? "", detail: memory.memoryDate });
+    return reply.code(201).send({ memory });
   });
 
   app.post("/api/memories/:memoryId/photos", async (request, reply) => {
@@ -220,7 +223,9 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = eventSchema.parse(request.body);
     if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     const event = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
-    return reply.code(201).send({ event: await repository.createFamilyEvent(event) });
+    const created = await repository.createFamilyEvent(event);
+    await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: created.title, content: `${created.description}\n${created.category} on ${created.eventDate}${created.location ? ` at ${created.location}` : ""}.`, sourceId: created.id, familyId: created.familyId, createdAt: created.createdAt, sourceType: "event", sourceUrl: created.imageUrl, detail: created.eventDate });
+    return reply.code(201).send({ event: created });
   });
 
   app.get("/api/files", async (request, reply) => {
@@ -236,7 +241,9 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = fileSchema.parse(request.body);
     if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     const file = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, uploadedBy: user.id, uploaderName: user.name, createdAt: new Date().toISOString() };
-    return reply.code(201).send({ file: await repository.createFamilyFile(file) });
+    const created = await repository.createFamilyFile(file);
+    await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: created.name, content: `${created.description}\n${created.fileType} uploaded by ${created.uploaderName}.`, sourceId: created.id, familyId: created.familyId, createdAt: created.createdAt, sourceType: "file", sourceUrl: created.url, detail: created.fileType });
+    return reply.code(201).send({ file: created });
   });
 
   app.patch("/api/files/:fileId", async (request, reply) => {
@@ -246,6 +253,34 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = fileRenameSchema.parse(request.body);
     const file = await repository.renameFamilyFile(user.id, input.familyId, fileId, input.name);
     return file ? { file } : reply.code(404).send({ error: { code: "FILE_NOT_FOUND", message: "File was not found" } });
+  });
+
+  app.get("/api/conversations", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
+    if (!(await repository.findFamilyForUser(user.id, familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    return { conversations: await repository.listConversations(user.id, familyId) };
+  });
+
+  app.put("/api/conversations/:conversationId", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { conversationId } = z.object({ conversationId: z.uuid() }).parse(request.params);
+    const input = conversationSchema.parse(request.body);
+    if (conversationId !== input.id || !(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(403).send({ error: { code: "FORBIDDEN", message: "Conversation access is not allowed" } });
+    const conversation = { vertexId: randomVertexId(), userId: user.id, ...input };
+    return { conversation: await repository.saveConversation(conversation) };
+  });
+
+  app.delete("/api/conversations/:conversationId", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { conversationId } = z.object({ conversationId: z.uuid() }).parse(request.params);
+    const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
+    if (!(await repository.findFamilyForUser(user.id, familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    await repository.deleteConversation(user.id, familyId, conversationId);
+    return reply.code(204).send();
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {
@@ -302,8 +337,8 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = chatSchema.parse(request.body);
     const family = await repository.findFamilyForUser(user.id, input.familyId);
     if (!family) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
-    const context = await retrieval.retrieve(family.id, input.question);
-    return ai.generate({ question: input.question, familyName: family.name, context });
+    const context = await retrieval.retrieve(user.id, family.id, input.question);
+    return ai.generate({ question: input.question, familyName: family.name, context, history: input.history });
   });
 
   return app;

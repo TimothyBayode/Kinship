@@ -68,6 +68,14 @@ test("auth, cookie sessions, families, and AI authorization", async () => {
   assert.equal(createFamily.statusCode, 201);
   const familyId = createFamily.json().family.id as string;
 
+  const createMemory = await app.inject({
+    method: "POST",
+    url: "/api/memories",
+    headers: { cookie, origin: config.APP_ORIGIN, "content-type": "application/json" },
+    payload: { familyId, title: "Grandma's lemon cake", description: "Grace baked lemon cake every Sunday after church.", memoryDate: "1998-06-14", photos: ["https://example.com/lemon-cake.jpg"] },
+  });
+  assert.equal(createMemory.statusCode, 201);
+
   const listFamilies = await app.inject({ method: "GET", url: "/api/families", headers: { cookie } });
   assert.equal(listFamilies.statusCode, 200);
   assert.deepEqual(listFamilies.json().families.map((family: { role: string }) => family.role), ["owner"]);
@@ -80,6 +88,15 @@ test("auth, cookie sessions, families, and AI authorization", async () => {
   });
   assert.equal(chat.statusCode, 200);
   assert.match(chat.json().content, /Gemini is not configured/);
+
+  const groundedChat = await app.inject({
+    method: "POST",
+    url: "/api/ai/chat",
+    headers: { cookie, origin: config.APP_ORIGIN, "content-type": "application/json" },
+    payload: { familyId, question: "What lemon cake did Grace bake?", history: [] },
+  });
+  assert.equal(groundedChat.statusCode, 200);
+  assert.equal(groundedChat.json().sources[0].title, "Grandma's lemon cake");
 
   const logout = await app.inject({ method: "POST", url: "/api/auth/logout", headers: { cookie, origin: config.APP_ORIGIN } });
   assert.equal(logout.statusCode, 204);
