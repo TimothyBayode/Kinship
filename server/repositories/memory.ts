@@ -157,6 +157,15 @@ export class MemoryRepository implements KinshipRepository {
     return structuredClone([...this.familyFiles.values()].filter((file) => file.familyId === familyId));
   }
 
+  async renameFamilyFile(userId: string, familyId: string, fileId: string, name: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return null;
+    const file = this.familyFiles.get(fileId);
+    if (!file || file.familyId !== familyId) return null;
+    const updated = { ...file, name };
+    this.familyFiles.set(fileId, updated);
+    return structuredClone(updated);
+  }
+
   async listSourceChunks(familyId: string, limit: number) {
     return structuredClone(this.sourceChunks.filter((chunk) => chunk.familyId === familyId).slice(0, limit));
   }

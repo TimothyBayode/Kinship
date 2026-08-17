@@ -138,5 +138,6 @@ export interface KinshipRepository {
   listFamilyEvents(userId: string, familyId: string): Promise<FamilyEvent[]>;
   createFamilyFile(file: FamilyFileRecord): Promise<FamilyFileRecord>;
   listFamilyFiles(userId: string, familyId: string): Promise<FamilyFileRecord[]>;
+  renameFamilyFile(userId: string, familyId: string, fileId: string, name: string): Promise<FamilyFileRecord | null>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

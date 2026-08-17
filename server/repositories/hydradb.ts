@@ -169,6 +169,14 @@ export class HydraDbRepository implements KinshipRepository {
     return rows as FamilyFileRecord[];
   }
 
+  async renameFamilyFile(userId: string, familyId: string, fileId: string, name: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return null;
+    const [existing] = await this.client.query("MATCH (x:File) WHERE x.appId = $fileId AND x.familyId = $familyId RETURN x.appId AS id", { fileId, familyId });
+    if (!existing) return null;
+    await this.client.query("MATCH (x:File) WHERE x.appId = $fileId AND x.familyId = $familyId SET x.name = $name", { fileId, familyId, name });
+    return (await this.listFamilyFiles(userId, familyId)).find((file) => file.id === fileId) ?? null;
+  }
+
   async listSourceChunks(familyId: string, limit: number) {
     const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });
     return rows as SourceChunk[];

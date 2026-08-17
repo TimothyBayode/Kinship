@@ -195,6 +195,9 @@ export const fileApi = {
   async create(input: Omit<ApiFile, "id" | "uploadedBy" | "uploaderName" | "createdAt">) {
     return (await request<{ file: ApiFile }>("/api/files", { method: "POST", body: JSON.stringify(input) })).file;
   },
+  async rename(fileId: string, familyId: string, name: string) {
+    return (await request<{ file: ApiFile }>(`/api/files/${fileId}`, { method: "PATCH", body: JSON.stringify({ familyId, name }) })).file;
+  },
 };
 
 export const invitationApi = {

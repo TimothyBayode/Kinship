@@ -26,6 +26,7 @@ const memorySchema = z.object({ familyId: z.uuid(), title: z.string().trim().min
 const memoryPhotosSchema = z.object({ familyId: z.uuid(), photos: z.array(z.url()).min(1).max(50) });
 const eventSchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), category: z.enum(["Birthday", "Gathering", "Anniversary", "Other"]), eventDate: z.iso.date(), location: z.string().trim().max(200), imageUrl: z.union([z.url(), z.literal("")]).default("") });
 const fileSchema = z.object({ familyId: z.uuid(), name: z.string().trim().min(1).max(240), description: z.string().trim().max(4_000), mimeType: z.string().trim().max(200), fileType: z.enum(["PDF", "Audio", "Spreadsheet", "Document", "Image", "Video", "Other"]), sizeBytes: z.number().int().nonnegative(), url: z.url() });
+const fileRenameSchema = z.object({ familyId: z.uuid(), name: z.string().trim().min(1).max(240) });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -236,6 +237,15 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     const file = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, uploadedBy: user.id, uploaderName: user.name, createdAt: new Date().toISOString() };
     return reply.code(201).send({ file: await repository.createFamilyFile(file) });
+  });
+
+  app.patch("/api/files/:fileId", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const { fileId } = z.object({ fileId: z.uuid() }).parse(request.params);
+    const input = fileRenameSchema.parse(request.body);
+    const file = await repository.renameFamilyFile(user.id, input.familyId, fileId, input.name);
+    return file ? { file } : reply.code(404).send({ error: { code: "FILE_NOT_FOUND", message: "File was not found" } });
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {
