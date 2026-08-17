@@ -1,110 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Filter, Plus } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Filter, ImagePlus, Plus, X } from "lucide-react";
 
-import { Button, SectionTitle } from "@/components/kinship-ui";
-import { events } from "@/lib/types";
+import { Button, SectionTitle, SelectMenu } from "@/components/kinship-ui";
+import { eventApi, familyApi, uploadApi, type ApiEvent } from "@/lib/api";
+import { events as demoEvents } from "@/lib/types";
 
 const filters = ["All Events", "Birthdays", "Gatherings", "Anniversaries"] as const;
 type EventFilter = (typeof filters)[number];
+type DisplayEvent = { id: string; title: string; description: string; category: ApiEvent["category"]; eventDate: string; location: string; imageUrl: string };
 
 export default function EventsPage() {
-  const [filter, setFilter] = useState<EventFilter>("All Events");
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filter, setFilter] = useState<EventFilter>("All Events"); const [filterOpen, setFilterOpen] = useState(false); const [formOpen, setFormOpen] = useState(false); const [familyId, setFamilyId] = useState(""); const [live, setLive] = useState<ApiEvent[]>([]); const [error, setError] = useState("");
   const filterMenuRef = useRef<HTMLDivElement>(null);
-  const visibleEvents = events.filter((event) => {
-    if (filter === "Birthdays") return event.category === "Birthday";
-    if (filter === "Gatherings") return event.category === "Gathering";
-    if (filter === "Anniversaries") return event.category === "Anniversary";
-    return true;
-  });
+  const all: DisplayEvent[] = [...live.map((event) => ({ ...event })), ...demoEvents.map((event) => ({ id: event.id, title: event.title, description: `${event.category} at ${event.location}.`, category: event.category, eventDate: toIsoDate(event.date), location: event.location, imageUrl: event.image ?? "" }))];
+  const visible = all.filter((event) => filter === "All Events" || (filter === "Birthdays" && event.category === "Birthday") || (filter === "Gatherings" && event.category === "Gathering") || (filter === "Anniversaries" && event.category === "Anniversary"));
 
-  useEffect(() => {
-    if (!filterOpen) return;
+  useEffect(() => { familyApi.list().then(async (families) => { if (!families[0]) return; setFamilyId(families[0].id); setLive(await eventApi.list(families[0].id)); }).catch((exception: Error) => setError(exception.message)); }, []);
+  useEffect(() => { if (!filterOpen) return; const close = (event: PointerEvent) => { if (!filterMenuRef.current?.contains(event.target as Node)) setFilterOpen(false); }; document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close); }, [filterOpen]);
 
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!filterMenuRef.current?.contains(event.target as Node)) {
-        setFilterOpen(false);
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFilterOpen(false);
-    };
-
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [filterOpen]);
-
-  return (
-    <section>
-      <div className="mb-12">
-        <SectionTitle title="Events">
-          <div className="flex flex-wrap gap-2">
-            <div className="relative" ref={filterMenuRef}>
-              <button
-                type="button"
-                className="surface inline-flex min-w-48 items-center justify-center gap-2 whitespace-nowrap rounded-md px-5 py-3 text-sm font-semibold text-foreground"
-                onClick={() => setFilterOpen((open) => !open)}
-                aria-haspopup="menu"
-                aria-expanded={filterOpen}
-              >
-                <Filter className="size-4" />
-                {filter}
-                <ChevronDown className={`size-4 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
-              </button>
-              {filterOpen && (
-                <div className="surface absolute right-0 top-full z-20 mt-2 w-56 rounded-xl p-2" role="menu">
-                  {filters.map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      className={`block w-full rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/5 ${filter === option ? "font-bold text-primary" : "font-medium"}`}
-                      onClick={() => {
-                        setFilter(option);
-                        setFilterOpen(false);
-                      }}
-                      role="menuitemradio"
-                      aria-checked={filter === option}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Button primary>
-              <Plus className="size-4" />
-              Add New Event
-            </Button>
-          </div>
-        </SectionTitle>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {visibleEvents.map((event) => (
-          <article key={event.id} className="surface overflow-hidden rounded-2xl">
-            <img src={event.image} alt="" className="h-44 w-full object-cover" />
-            <div className="flex gap-5 p-5 sm:p-6">
-              <time dateTime={event.date} className="flex h-20 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <span className="text-xs font-bold">{event.month}</span>
-                <span className="mt-1 text-2xl font-black">{event.day}</span>
-              </time>
-              <div className="min-w-0 flex-1">
-                <div>
-                  <span className="text-xs font-bold text-primary">{event.category}</span>
-                  <h2 className="mt-1 text-xl font-semibold">{event.title}</h2>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-2"><CalendarDays className="size-4" />{event.date}</span>
-                </div>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
+  return <section><div className="mb-12"><SectionTitle title="Events"><div className="flex flex-wrap gap-2"><div className="relative" ref={filterMenuRef}><button type="button" className="surface inline-flex min-w-48 items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold" onClick={() => setFilterOpen((open) => !open)}><Filter className="size-4" />{filter}<ChevronDown className={`size-4 transition-transform ${filterOpen ? "rotate-180" : ""}`} /></button>{filterOpen && <div className="surface absolute right-0 top-full z-20 mt-2 w-56 rounded-xl p-2">{filters.map((option) => <button type="button" key={option} onClick={() => { setFilter(option); setFilterOpen(false); }} className={`block w-full rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/5 ${filter === option ? "font-bold text-primary" : "font-medium"}`}>{option}</button>)}</div>}</div><Button primary disabled={!familyId} onClick={() => setFormOpen(true)}><Plus className="size-4" />Add New Event</Button></div></SectionTitle>{error && <p className="mt-3 text-sm text-destructive">{error}</p>}</div><div className="grid gap-6 md:grid-cols-2">{visible.map((event) => <article key={event.id} className="surface overflow-hidden rounded-2xl">{event.imageUrl ? <img src={event.imageUrl} alt="" className="h-44 w-full object-cover" /> : <div className="grid h-44 place-items-center bg-primary/5"><CalendarDays className="size-10 text-primary/50" /></div>}<div className="flex gap-5 p-5 sm:p-6"><time dateTime={event.eventDate} className="flex h-20 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary"><span className="text-xs font-bold">{month(event.eventDate)}</span><span className="mt-1 text-2xl font-black">{day(event.eventDate)}</span></time><div className="min-w-0 flex-1"><span className="text-xs font-bold text-primary">{event.category}</span><h2 className="mt-1 text-xl font-semibold">{event.title}</h2><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{event.description}</p><div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-2"><CalendarDays className="size-4" />{formatDate(event.eventDate)}</span>{event.location && <span>{event.location}</span>}</div></div></div></article>)}</div>{formOpen && <EventForm familyId={familyId} onClose={() => setFormOpen(false)} onCreated={(event) => { setLive((current) => [event, ...current]); setFormOpen(false); }} />}</section>;
 }
+
+function EventForm({ familyId, onClose, onCreated }: { familyId: string; onClose: () => void; onCreated: (event: ApiEvent) => void }) {
+  const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [category, setCategory] = useState(""); const [eventDate, setEventDate] = useState(""); const [location, setLocation] = useState(""); const [imageUrl, setImageUrl] = useState(""); const [uploading, setUploading] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const input = useRef<HTMLInputElement>(null);
+  const upload = async (file: File) => { try { setUploading(true); setImageUrl(await uploadApi.upload(file)); } catch (exception) { setError((exception as Error).message); } finally { setUploading(false); } };
+  const save = async () => { try { setSaving(true); setError(""); onCreated(await eventApi.create({ familyId, title, description, category: category as ApiEvent["category"], eventDate, location, imageUrl })); } catch (exception) { setError((exception as Error).message); } finally { setSaving(false); } };
+  return <Modal onClose={onClose}><div className="flex items-start justify-between"><div><h2 className="text-2xl font-semibold">Add family event</h2><p className="mt-1 text-sm text-muted-foreground">Birthdays, anniversaries, reunions, and more.</p></div><button onClick={onClose}><X /></button></div><div className="mt-7 grid gap-5"><label className="text-sm font-medium">Event title<input value={title} onChange={(event) => setTitle(event.target.value)} className={inputClass} placeholder="Grandma's birthday" /></label><div><span className="text-sm font-medium">Category</span><SelectMenu value={category} options={categories} placeholder="Choose category" onChange={setCategory} className="mt-2" /></div><div><span className="text-sm font-medium">Date</span><EventDatePicker value={eventDate} onChange={setEventDate} /></div><label className="text-sm font-medium">Location<input value={location} onChange={(event) => setLocation(event.target.value)} className={inputClass} placeholder="Family home or venue" /></label><label className="text-sm font-medium">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-2 min-h-28 w-full resize-y rounded-md border-0 bg-[#f5f5f2] p-4 outline-none focus:outline-none focus:ring-0" /></label><div><span className="text-sm font-medium">Event image <span className="font-normal text-muted-foreground">(optional)</span></span><input ref={input} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /><button type="button" onClick={() => input.current?.click()} className="mt-2 flex min-h-20 w-full items-center gap-4 rounded-md bg-[#f5f5f2] p-4 text-left">{imageUrl ? <img src={imageUrl} alt="" className="size-14 rounded-md object-cover" /> : <ImagePlus className="size-6 text-primary" />}<span className="text-sm font-semibold">{uploading ? "Uploading..." : imageUrl ? "Change image" : "Choose image"}</span></button></div></div>{error && <p className="mt-4 text-sm text-destructive">{error}</p>}<Button primary disabled={saving || uploading || title.trim().length < 2 || !category || !eventDate} onClick={save} className="mt-7 min-h-14 w-full">{saving ? "Saving event..." : "Add event"}</Button></Modal>;
+}
+
+function EventDatePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) { const [open, setOpen] = useState(false); const initial = value ? new Date(`${value}T00:00:00`) : new Date(); const [current, setCurrent] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1)); const days = calendarDays(current); return <div className="relative"><button type="button" onClick={() => setOpen(!open)} className="mt-2 flex h-14 w-full items-center justify-between rounded-md bg-[#f5f5f2] px-4 text-sm outline-none"><span className={value ? "" : "text-muted-foreground"}>{value ? formatDate(value) : "Select date"}</span><CalendarDays className="size-5 text-primary" /></button>{open && <div className="absolute left-0 top-full z-30 mt-2 w-full min-w-[320px] rounded-xl bg-white p-5 shadow-xl"><div className="flex items-center justify-between"><button onClick={() => setCurrent(shiftMonth(current, -1))}><ChevronLeft /></button><strong>{current.toLocaleString("en", { month: "long", year: "numeric" })}</strong><button onClick={() => setCurrent(shiftMonth(current, 1))}><ChevronRight /></button></div><div className="mt-4 grid grid-cols-7 text-center text-xs text-muted-foreground">{weekdays.map((item) => <span key={item}>{item}</span>)}</div><div className="mt-2 grid grid-cols-7 gap-1">{days.map((date) => { const key = iso(date); return <button type="button" key={key} onClick={() => { onChange(key); setOpen(false); }} className={`aspect-square rounded-md text-sm ${date.getMonth() === current.getMonth() ? "" : "text-muted-foreground/30"} ${key === value ? "bg-primary text-white" : "hover:bg-primary/10"}`}>{date.getDate()}</button>; })}</div></div>}</div>; }
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) { return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-foreground/25 p-4 backdrop-blur-sm" onClick={onClose}><div className="my-6 w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl sm:p-8" onClick={(event) => event.stopPropagation()}>{children}</div></div>; }
+const inputClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 outline-none focus:border-0 focus:outline-none focus:ring-0";
+const categories = ["Birthday", "Gathering", "Anniversary", "Other"].map((value) => ({ value, label: value })); const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function shiftMonth(date: Date, amount: number) { return new Date(date.getFullYear(), date.getMonth() + amount, 1); } function iso(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; } function calendarDays(date: Date) { const first = new Date(date.getFullYear(), date.getMonth(), 1 - new Date(date.getFullYear(), date.getMonth(), 1).getDay()); return Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + index)); } function formatDate(value: string) { return new Intl.DateTimeFormat("en", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`)); } function month(value: string) { return new Date(`${value}T00:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" }).toUpperCase(); } function day(value: string) { return value.slice(8, 10); } function toIsoDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10) : date.toISOString().slice(0, 10); }

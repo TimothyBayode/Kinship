@@ -51,6 +51,19 @@ export type ApiMemory = {
   photos: string[];
 };
 
+export type ApiEvent = {
+  id: string;
+  familyId: string;
+  title: string;
+  description: string;
+  category: "Birthday" | "Gathering" | "Anniversary" | "Other";
+  eventDate: string;
+  location: string;
+  imageUrl: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 type ApiErrorBody = { error?: { message?: string } };
 
 let accessToken: string | null = null;
@@ -149,6 +162,15 @@ export const memoryApi = {
   },
   async addPhotos(memoryId: string, familyId: string, photos: string[]) {
     return (await request<{ memory: ApiMemory }>(`/api/memories/${memoryId}/photos`, { method: "POST", body: JSON.stringify({ familyId, photos }) })).memory;
+  },
+};
+
+export const eventApi = {
+  async list(familyId: string) {
+    return (await request<{ events: ApiEvent[] }>(`/api/events?familyId=${encodeURIComponent(familyId)}`)).events;
+  },
+  async create(input: Omit<ApiEvent, "id" | "createdBy" | "createdAt">) {
+    return (await request<{ event: ApiEvent }>("/api/events", { method: "POST", body: JSON.stringify(input) })).event;
   },
 };
 

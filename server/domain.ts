@@ -78,6 +78,20 @@ export type MemoryAlbum = {
   photos: string[];
 };
 
+export type FamilyEvent = {
+  id: string;
+  vertexId: number;
+  familyId: string;
+  title: string;
+  description: string;
+  category: "Birthday" | "Gathering" | "Anniversary" | "Other";
+  eventDate: string;
+  location: string;
+  imageUrl: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 export type CreateUser = Pick<User, "id" | "vertexId" | "email" | "name" | "passwordHash" | "createdAt">;
 
 export interface KinshipRepository {
@@ -105,5 +119,7 @@ export interface KinshipRepository {
   createMemoryAlbum(album: MemoryAlbum): Promise<MemoryAlbum>;
   listMemoryAlbums(userId: string, familyId: string): Promise<MemoryAlbum[]>;
   appendMemoryPhotos(userId: string, familyId: string, memoryId: string, photos: string[]): Promise<MemoryAlbum | null>;
+  createFamilyEvent(event: FamilyEvent): Promise<FamilyEvent>;
+  listFamilyEvents(userId: string, familyId: string): Promise<FamilyEvent[]>;
   listSourceChunks(familyId: string, limit: number): Promise<SourceChunk[]>;
 }

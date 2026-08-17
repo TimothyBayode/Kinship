@@ -24,6 +24,7 @@ const inviteCodeSchema = z.object({ code: z.string().trim().min(6).max(20).trans
 const relationshipSchema = z.object({ relationship: z.string().trim().min(2).max(60) });
 const memorySchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), memoryDate: z.iso.date(), photos: z.array(z.url()).min(1).max(50) });
 const memoryPhotosSchema = z.object({ familyId: z.uuid(), photos: z.array(z.url()).min(1).max(50) });
+const eventSchema = z.object({ familyId: z.uuid(), title: z.string().trim().min(2).max(120), description: z.string().trim().max(4_000), category: z.enum(["Birthday", "Gathering", "Anniversary", "Other"]), eventDate: z.iso.date(), location: z.string().trim().max(200), imageUrl: z.union([z.url(), z.literal("")]).default("") });
 
 export async function buildApp(config: AppConfig, repository: KinshipRepository) {
   const app = Fastify({ logger: config.NODE_ENV !== "test", trustProxy: config.NODE_ENV === "production" });
@@ -202,6 +203,22 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const input = memoryPhotosSchema.parse(request.body);
     const memory = await repository.appendMemoryPhotos(user.id, input.familyId, memoryId, input.photos);
     return memory ? { memory } : reply.code(404).send({ error: { code: "MEMORY_NOT_FOUND", message: "Memory was not found" } });
+  });
+
+  app.get("/api/events", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
+    return { events: await repository.listFamilyEvents(user.id, familyId) };
+  });
+
+  app.post("/api/events", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const input = eventSchema.parse(request.body);
+    if (!(await repository.findFamilyForUser(user.id, input.familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
+    const event = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
+    return reply.code(201).send({ event: await repository.createFamilyEvent(event) });
   });
 
   app.patch("/api/families/:familyId/members/:memberId/relationship", async (request, reply) => {

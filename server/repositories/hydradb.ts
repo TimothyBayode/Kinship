@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyEvent, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -145,6 +145,17 @@ export class HydraDbRepository implements KinshipRepository {
     await this.client.query("UNWIND $rows AS row MERGE (p {id: row.vertex}) SET p:Photo, p.vertexId = row.vertexId, p.appId = row.appId, p.url = row.url, p.familyId = row.familyId, p.createdAt = row.createdAt", { rows: photos });
     await this.client.query("UNWIND $rows AS row MATCH (m:Memory {id: row.memoryVertex}), (p:Photo {id: row.photoVertex}) CREATE (m)-[:CONTAINS {id: row.edgeId, familyId: row.familyId}]->(p)", { rows: photos.map((photo) => ({ memoryVertex: row.vertexId, photoVertex: photo.vertexId, edgeId: randomVertexId(), familyId })) });
     return (await this.listMemoryAlbums(userId, familyId)).find((album) => album.id === memoryId) ?? null;
+  }
+
+  async createFamilyEvent(event: FamilyEvent) {
+    await this.upsertVertex("Event", event);
+    return event;
+  }
+
+  async listFamilyEvents(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    const rows = await this.client.query("MATCH (e:Event) WHERE e.familyId = $familyId RETURN e.appId AS id, e.vertexId AS vertexId, e.familyId AS familyId, e.title AS title, e.description AS description, e.category AS category, e.eventDate AS eventDate, e.location AS location, e.imageUrl AS imageUrl, e.createdBy AS createdBy, e.createdAt AS createdAt ORDER BY e.eventDate", { familyId });
+    return rows as FamilyEvent[];
   }
 
   async listSourceChunks(familyId: string, limit: number) {

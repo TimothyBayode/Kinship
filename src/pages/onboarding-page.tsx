@@ -5,7 +5,7 @@ import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Image
 import { Button, Logo, SelectMenu } from "@/components/kinship-ui";
 import { familyApi, profileApi, uploadApi } from "@/lib/api";
 
-const inputClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20";
+const inputClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 text-sm outline-none focus:border-0 focus:outline-none focus:ring-0";
 
 export default function OnboardingPage() {
   const navigate = useNavigate();

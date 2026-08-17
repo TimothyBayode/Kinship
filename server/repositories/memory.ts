@@ -1,4 +1,4 @@
-import type { CreateUser, Family, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { CreateUser, Family, FamilyEvent, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
 
 export class MemoryRepository implements KinshipRepository {
   private users = new Map<string, User>();
@@ -9,6 +9,7 @@ export class MemoryRepository implements KinshipRepository {
   private invitations = new Map<string, Invitation>();
   private relationships = new Map<string, string>();
   private memoryAlbums = new Map<string, MemoryAlbum>();
+  private familyEvents = new Map<string, FamilyEvent>();
 
   async health() {}
 
@@ -133,6 +134,16 @@ export class MemoryRepository implements KinshipRepository {
     const updated = { ...album, photos: [...album.photos, ...photos] };
     this.memoryAlbums.set(memoryId, updated);
     return structuredClone(updated);
+  }
+
+  async createFamilyEvent(event: FamilyEvent) {
+    this.familyEvents.set(event.id, structuredClone(event));
+    return structuredClone(event);
+  }
+
+  async listFamilyEvents(userId: string, familyId: string) {
+    if (!(await this.findFamilyForUser(userId, familyId))) return [];
+    return structuredClone([...this.familyEvents.values()].filter((event) => event.familyId === familyId));
   }
 
   async listSourceChunks(familyId: string, limit: number) {
