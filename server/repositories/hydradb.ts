@@ -56,14 +56,10 @@ export class HydraDbRepository implements KinshipRepository {
     await this.upsertVertex("Family", family);
     const user = await this.findUserById(membership.userId);
     if (!user) throw new Error("USER_NOT_FOUND");
-    await this.client.query("MATCH (u:User {id: $userVertex}), (f:Family {id: $familyVertex}) CREATE (u)-[:MEMBER_OF {id: $relationshipId, role: $role, userId: $userId, familyId: $familyId}]->(f)", {
-      userVertex: user.vertexId,
-      familyVertex: family.vertexId,
-      relationshipId: randomVertexId(),
-      role: membership.role,
-      userId: membership.userId,
-      familyId: membership.familyId,
-    });
+    await this.client.query("UNWIND $rows AS row MATCH (u:User {id: row.userVertex}), (f:Family {id: row.familyVertex}) CREATE (u)-[:MEMBER_OF {id: row.relationshipId, role: row.role, relationship: row.relationship, userId: row.userId, familyId: row.familyId}]->(f)", { rows: [{
+      userVertex: user.vertexId, familyVertex: family.vertexId, relationshipId: randomVertexId(), role: membership.role,
+      relationship: membership.relationship, userId: membership.userId, familyId: membership.familyId,
+    }] });
     return family;
   }
 
@@ -72,9 +68,9 @@ export class HydraDbRepository implements KinshipRepository {
     const user = await this.findUserById(userId);
     const [family] = await this.client.query("MATCH (f:Family) WHERE f.appId = $familyId RETURN f.vertexId AS vertexId", { familyId });
     if (!user || !family) throw new Error("NOT_FOUND");
-    await this.client.query("MATCH (u:User {id: $userVertex}), (f:Family {id: $familyVertex}) CREATE (u)-[:MEMBER_OF {id: $relationshipId, role: $role, relationship: $relationship, userId: $userId, familyId: $familyId}]->(f)", {
+    await this.client.query("UNWIND $rows AS row MATCH (u:User {id: row.userVertex}), (f:Family {id: row.familyVertex}) CREATE (u)-[:MEMBER_OF {id: row.relationshipId, role: row.role, relationship: row.relationship, userId: row.userId, familyId: row.familyId}]->(f)", { rows: [{
       userVertex: user.vertexId, familyVertex: family.vertexId, relationshipId: randomVertexId(), role: "member", relationship, userId, familyId,
-    });
+    }] });
   }
 
   async listFamiliesForUser(userId: string) {
@@ -102,7 +98,7 @@ export class HydraDbRepository implements KinshipRepository {
       await this.client.query("MATCH (u:User)-[r:RELATED_TO]->(v:User) WHERE u.appId = $userId AND v.appId = $relativeUserId AND r.familyId = $familyId SET r.relationship = $relationship", { userId, relativeUserId, familyId, relationship });
       return;
     }
-    await this.client.query("MATCH (u:User {id: $sourceVertex}), (v:User {id: $targetVertex}) CREATE (u)-[:RELATED_TO {id: $edgeId, familyId: $familyId, relationship: $relationship}]->(v)", { sourceVertex: source.vertexId, targetVertex: target.vertexId, edgeId: randomVertexId(), familyId, relationship });
+    await this.client.query("UNWIND $rows AS row MATCH (u:User {id: row.sourceVertex}), (v:User {id: row.targetVertex}) CREATE (u)-[:RELATED_TO {id: row.edgeId, familyId: row.familyId, relationship: row.relationship}]->(v)", { rows: [{ sourceVertex: source.vertexId, targetVertex: target.vertexId, edgeId: randomVertexId(), familyId, relationship }] });
   }
 
   async createInvitation(invitation: Invitation) {

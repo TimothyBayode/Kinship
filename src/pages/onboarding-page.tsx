@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Users } from "lucide-react";
 
 import { Button, Logo } from "@/components/kinship-ui";
 import { familyApi, invitationApi, profileApi } from "@/lib/api";
@@ -14,6 +14,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<"profile" | "family">("profile");
   const [mode, setMode] = useState<"create" | "join">("create");
   const [gender, setGender] = useState("");
+  const [genderOpen, setGenderOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [birthday, setBirthday] = useState("");
   const [familyName, setFamilyName] = useState("");
@@ -66,7 +67,7 @@ export default function OnboardingPage() {
 
         {step === "profile" ? (
           <div className="mt-9 grid gap-6 sm:grid-cols-2">
-            <label className="text-sm font-medium">Gender<select value={gender} onChange={(event) => setGender(event.target.value)} className={inputClass}><option value="">Select gender</option><option value="female">Female</option><option value="male">Male</option><option value="non-binary">Non-binary</option><option value="prefer-not-to-say">Prefer not to say</option></select></label>
+            <div className="relative"><span className="text-sm font-medium">Gender</span><button type="button" onClick={() => setGenderOpen((open) => !open)} className={`${inputClass} flex items-center justify-between text-left ${gender ? "text-foreground" : "text-muted-foreground"}`} aria-haspopup="listbox" aria-expanded={genderOpen}><span>{genderOptions.find((option) => option.value === gender)?.label ?? "Select gender"}</span><ChevronDown className={`size-4 transition-transform ${genderOpen ? "rotate-180" : ""}`} /></button>{genderOpen && <div className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl bg-[#f5f5f2] p-2 shadow-[0_10px_30px_rgba(23,21,29,0.12)]" role="listbox">{genderOptions.map((option) => <button type="button" key={option.value} onClick={() => { setGender(option.value); setGenderOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-left text-sm hover:bg-primary/10 ${gender === option.value ? "font-bold text-primary" : "font-medium"}`} role="option" aria-selected={gender === option.value}>{option.label}{gender === option.value && <Check className="size-4" />}</button>)}</div>}</div>
             <label className="text-sm font-medium">Phone number<input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" className={inputClass} placeholder="+234 800 000 0000" /></label>
             <div className="sm:col-span-2"><span className="text-sm font-medium">Birthday</span><BirthdayPicker value={birthday} onChange={setBirthday} /></div>
           </div>
@@ -113,6 +114,7 @@ function BirthdayPicker({ value, onChange }: { value: string; onChange: (value: 
 }
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const genderOptions = [{ value: "female", label: "Female" }, { value: "male", label: "Male" }, { value: "non-binary", label: "Non-binary" }, { value: "prefer-not-to-say", label: "Prefer not to say" }];
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const birthdayYears = Array.from({ length: 121 }, (_, index) => new Date().getFullYear() - index);
 function shiftMonth(date: Date, offset: number) { return new Date(date.getFullYear(), date.getMonth() + offset, 1); }
