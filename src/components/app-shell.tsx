@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { Avatar, Logo } from "@/components/kinship-ui";
-import { authApi, setAccessToken, type ApiUser } from "@/lib/api";
+import { authApi, notificationApi, setAccessToken, type ApiNotification, type ApiUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 const nav = [
@@ -33,6 +33,9 @@ export function AppShell() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [user, setUser] = useState<ApiUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -54,6 +57,16 @@ export function AppShell() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setAccessToken(session?.access_token ?? null));
     return () => subscription.unsubscribe();
   }, [navigate, pathname]);
+
+  useEffect(() => {
+    if (!user) return;
+    const load = () => notificationApi.list().then((result) => { setNotifications(result.notifications); setUnreadCount(result.unreadCount); }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, 30_000);
+    return () => window.clearInterval(timer);
+  }, [user?.id]);
+
+  const markAllRead = async () => { await notificationApi.markAllRead(); setNotifications((current) => current.map((item) => ({ ...item, read: true }))); setUnreadCount(0); };
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -120,10 +133,12 @@ export function AppShell() {
           </nav>
           <div className="flex items-center gap-3">
             <button
-              className="hidden rounded-md p-2 text-muted-foreground hover:bg-muted sm:block"
+              className="relative hidden rounded-md p-2 text-muted-foreground hover:bg-muted sm:block"
               aria-label="Notifications"
+              onClick={() => setNotificationsOpen((open) => !open)}
             >
               <Bell className="size-5" />
+              {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
             </button>
             <div className="relative" ref={accountMenuRef}>
               <button
@@ -150,7 +165,7 @@ export function AppShell() {
                   <button
                     type="button"
                     className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold hover:bg-primary/5 sm:hidden"
-                    onClick={() => { setAccountOpen(false); navigate("/account"); }}
+                    onClick={() => { setAccountOpen(false); setNotificationsOpen(true); }}
                     role="menuitem"
                   >
                     <Bell className="size-4" />
@@ -224,6 +239,8 @@ export function AppShell() {
         </div>
       )}
 
+      {notificationsOpen && <NotificationPanel notifications={notifications} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} onReadAll={markAllRead} onOpen={(target) => { setNotificationsOpen(false); navigate(target); }} />}
+
 
       <main className={pathname === "/ask" ? "mt-4 bg-[#f5f5f2]" : "mx-auto mt-4 max-w-[1500px] px-4 py-8 md:px-8 lg:px-12"}>
         <Outlet />
@@ -231,3 +248,7 @@ export function AppShell() {
     </div>
   );
 }
+
+function NotificationPanel({ notifications, unreadCount, onClose, onReadAll, onOpen }: { notifications: ApiNotification[]; unreadCount: number; onClose: () => void; onReadAll: () => Promise<void>; onOpen: (target: string) => void }) { return <div className="fixed inset-0 z-50 bg-foreground/15 p-4 backdrop-blur-sm" onClick={onClose}><aside className="ml-auto mt-14 flex max-h-[min(680px,calc(100vh-5rem))] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-foreground/5 px-5 py-4"><div><h2 className="text-lg font-semibold">Notifications</h2><p className="text-xs text-muted-foreground">{unreadCount} unread</p></div><div className="flex items-center gap-2">{unreadCount > 0 && <button type="button" onClick={() => void onReadAll()} className="rounded-md px-3 py-2 text-xs font-bold text-primary hover:bg-primary/5">Mark all as read</button>}<button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-[#f5f5f2]"><X className="size-4" /></button></div></div><div className="min-h-0 overflow-y-auto">{notifications.length ? notifications.map((item) => <button type="button" key={item.id} onClick={() => onOpen(item.target)} className={`flex w-full gap-3 border-b border-foreground/5 px-5 py-4 text-left hover:bg-primary/[.03] ${item.read ? "" : "bg-primary/[.05]"}`}><span className={`mt-1 size-2 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`} /><div className="min-w-0"><div className="flex items-start justify-between gap-3"><p className="font-semibold">{item.title}</p><span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(item.createdAt)}</span></div><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.message}</p></div></button>) : <div className="grid min-h-56 place-items-center p-6 text-center"><div><Bell className="mx-auto size-7 text-primary/50" /><p className="mt-3 font-semibold">No notifications yet</p><p className="mt-1 text-sm text-muted-foreground">Family activity will appear here.</p></div></div>}</div></aside></div>; }
+
+function relativeTime(value: string) { const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000)); if (seconds < 60) return "now"; const minutes = Math.floor(seconds / 60); if (minutes < 60) return `${minutes}m`; const hours = Math.floor(minutes / 60); if (hours < 24) return `${hours}h`; return `${Math.floor(hours / 24)}d`; }

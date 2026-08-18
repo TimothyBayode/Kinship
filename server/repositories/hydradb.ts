@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Notification, Session, SourceChunk, User } from "../domain.js";
 import { HydraDbClient } from "./hydradb-client.js";
 
 export class HydraDbRepository implements KinshipRepository {
@@ -193,6 +193,10 @@ export class HydraDbRepository implements KinshipRepository {
   async deleteConversation(userId: string, familyId: string, conversationId: string) {
     await this.client.query("MATCH (c:Conversation) WHERE c.appId = $conversationId AND c.userId = $userId AND c.familyId = $familyId DETACH DELETE c", { conversationId, userId, familyId });
   }
+
+  async createNotification(notification: Notification) { await this.upsertVertex("Notification", notification); return notification; }
+  async listNotifications(userId: string, limit: number) { const rows = await this.client.query("MATCH (n:Notification) WHERE n.recipientId = $userId RETURN n.appId AS id, n.vertexId AS vertexId, n.recipientId AS recipientId, n.familyId AS familyId, n.actorId AS actorId, n.actorName AS actorName, n.type AS type, n.title AS title, n.message AS message, n.target AS target, n.read AS read, n.createdAt AS createdAt ORDER BY n.createdAt DESC LIMIT $limit", { userId, limit }); return rows as Notification[]; }
+  async markAllNotificationsRead(userId: string) { await this.client.query("MATCH (n:Notification) WHERE n.recipientId = $userId SET n.read = true", { userId }); }
 
   async listSourceChunks(familyId: string, limit: number) {
     const rows = await this.client.query("MATCH (c:SourceChunk) WHERE c.familyId = $familyId RETURN c.appId AS id, c.vertexId AS vertexId, c.title AS title, c.content AS content, c.sourceId AS sourceId, c.familyId AS familyId, c.createdAt AS createdAt, c.sourceType AS sourceType, c.sourceUrl AS sourceUrl, c.detail AS detail ORDER BY c.createdAt DESC LIMIT $limit", { familyId, limit });

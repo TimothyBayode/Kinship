@@ -142,6 +142,21 @@ export type ChatConversation = {
   messages: ChatMessage[];
 };
 
+export type Notification = {
+  id: string;
+  vertexId: number;
+  recipientId: string;
+  familyId: string;
+  actorId: string;
+  actorName: string;
+  type: "file" | "event" | "memory" | "member";
+  title: string;
+  message: string;
+  target: string;
+  read: boolean;
+  createdAt: string;
+};
+
 export type CreateUser = Pick<User, "id" | "vertexId" | "email" | "name" | "passwordHash" | "createdAt">;
 
 export interface KinshipRepository {
@@ -179,4 +194,7 @@ export interface KinshipRepository {
   saveConversation(conversation: ChatConversation): Promise<ChatConversation>;
   listConversations(userId: string, familyId: string): Promise<ChatConversation[]>;
   deleteConversation(userId: string, familyId: string, conversationId: string): Promise<void>;
+  createNotification(notification: Notification): Promise<Notification>;
+  listNotifications(userId: string, limit: number): Promise<Notification[]>;
+  markAllNotificationsRead(userId: string): Promise<void>;
 }

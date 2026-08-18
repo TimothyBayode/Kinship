@@ -1,4 +1,4 @@
-import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Session, SourceChunk, User } from "../domain.js";
+import type { ChatConversation, CreateUser, Family, FamilyEvent, FamilyFileRecord, FamilyMember, Invitation, KinshipRepository, Membership, MemoryAlbum, Notification, Session, SourceChunk, User } from "../domain.js";
 
 export class MemoryRepository implements KinshipRepository {
   private users = new Map<string, User>();
@@ -12,6 +12,7 @@ export class MemoryRepository implements KinshipRepository {
   private familyEvents = new Map<string, FamilyEvent>();
   private familyFiles = new Map<string, FamilyFileRecord>();
   private conversations = new Map<string, ChatConversation>();
+  private notifications = new Map<string, Notification>();
 
   async health() {}
 
@@ -185,6 +186,10 @@ export class MemoryRepository implements KinshipRepository {
     const conversation = this.conversations.get(conversationId);
     if (conversation?.userId === userId && conversation.familyId === familyId) this.conversations.delete(conversationId);
   }
+
+  async createNotification(notification: Notification) { this.notifications.set(notification.id, structuredClone(notification)); return structuredClone(notification); }
+  async listNotifications(userId: string, limit: number) { return structuredClone([...this.notifications.values()].filter((item) => item.recipientId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)); }
+  async markAllNotificationsRead(userId: string) { for (const [id, item] of this.notifications) if (item.recipientId === userId) this.notifications.set(id, { ...item, read: true }); }
 
   async listSourceChunks(familyId: string, limit: number) {
     return structuredClone(this.sourceChunks.filter((chunk) => chunk.familyId === familyId).slice(0, limit));

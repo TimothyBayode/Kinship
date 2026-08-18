@@ -180,6 +180,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const family = await repository.findFamilyByInviteCode(code);
     if (!family) return reply.code(404).send({ error: { code: "INVITATION_NOT_FOUND", message: "This family invite code is invalid" } });
     await repository.joinFamily(user.id, family.id, "Relative");
+    await notifyFamily(repository, user.id, user.name, family.id, "member", "New family member", `${user.name} joined ${family.name}.`, "/family");
     return { familyId: family.id };
   });
 
@@ -198,6 +199,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const album = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
     const memory = await repository.createMemoryAlbum(album);
     await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: memory.title, content: `${memory.description}\nMemory date: ${memory.memoryDate}.`, sourceId: memory.id, familyId: memory.familyId, createdAt: memory.createdAt, sourceType: "memory", sourceUrl: memory.photos[0] ?? "", detail: memory.memoryDate });
+    await notifyFamily(repository, user.id, user.name, memory.familyId, "memory", "New family memory", `${user.name} added “${memory.title}”.`, "/memories");
     return reply.code(201).send({ memory });
   });
 
@@ -207,6 +209,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const { memoryId } = z.object({ memoryId: z.uuid() }).parse(request.params);
     const input = memoryPhotosSchema.parse(request.body);
     const memory = await repository.appendMemoryPhotos(user.id, input.familyId, memoryId, input.photos);
+    if (memory) await notifyFamily(repository, user.id, user.name, input.familyId, "memory", "Memory updated", `${user.name} added ${input.photos.length} picture${input.photos.length === 1 ? "" : "s"} to “${memory.title}”.`, "/memories");
     return memory ? { memory } : reply.code(404).send({ error: { code: "MEMORY_NOT_FOUND", message: "Memory was not found" } });
   });
 
@@ -225,6 +228,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const event = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, createdBy: user.id, createdAt: new Date().toISOString() };
     const created = await repository.createFamilyEvent(event);
     await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: created.title, content: `${created.description}\n${created.category} on ${created.eventDate}${created.location ? ` at ${created.location}` : ""}.`, sourceId: created.id, familyId: created.familyId, createdAt: created.createdAt, sourceType: "event", sourceUrl: created.imageUrl, detail: created.eventDate });
+    await notifyFamily(repository, user.id, user.name, created.familyId, "event", "New family event", `${user.name} added “${created.title}”.`, "/events");
     return reply.code(201).send({ event: created });
   });
 
@@ -243,6 +247,7 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const file = { id: crypto.randomUUID(), vertexId: randomVertexId(), ...input, uploadedBy: user.id, uploaderName: user.name, createdAt: new Date().toISOString() };
     const created = await repository.createFamilyFile(file);
     await repository.createSourceChunk({ id: crypto.randomUUID(), vertexId: randomVertexId(), title: created.name, content: `${created.description}\n${created.fileType} uploaded by ${created.uploaderName}.`, sourceId: created.id, familyId: created.familyId, createdAt: created.createdAt, sourceType: "file", sourceUrl: created.url, detail: created.fileType });
+    await notifyFamily(repository, user.id, user.name, created.familyId, "file", "New family file", `${user.name} uploaded “${created.name}”.`, "/files");
     return reply.code(201).send({ file: created });
   });
 
@@ -280,6 +285,20 @@ export async function buildApp(config: AppConfig, repository: KinshipRepository)
     const familyId = z.object({ familyId: z.uuid() }).parse(request.query).familyId;
     if (!(await repository.findFamilyForUser(user.id, familyId))) return reply.code(404).send({ error: { code: "FAMILY_NOT_FOUND", message: "Family was not found" } });
     await repository.deleteConversation(user.id, familyId, conversationId);
+    return reply.code(204).send();
+  });
+
+  app.get("/api/notifications", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    const notifications = await repository.listNotifications(user.id, 50);
+    return { notifications, unreadCount: notifications.filter((item) => !item.read).length };
+  });
+
+  app.post("/api/notifications/read-all", async (request, reply) => {
+    const user = await requireUser(request, reply, auth, supabase, repository, config);
+    if (!user) return;
+    await repository.markAllNotificationsRead(user.id);
     return reply.code(204).send();
   });
 
@@ -382,6 +401,14 @@ function toPublicUser(user: import("./domain.js").User) {
 
 function createInviteCode() {
   return crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase();
+}
+
+async function notifyFamily(repository: KinshipRepository, actorId: string, actorName: string, familyId: string, type: import("./domain.js").Notification["type"], title: string, message: string, target: string) {
+  const members = await repository.listFamilyMembers(actorId, familyId);
+  for (const member of members) {
+    if (member.id === actorId) continue;
+    await repository.createNotification({ id: crypto.randomUUID(), vertexId: randomVertexId(), recipientId: member.id, familyId, actorId, actorName, type, title, message, target, read: false, createdAt: new Date().toISOString() });
+  }
 }
 
 function setSessionCookie(reply: FastifyReply, config: AppConfig, token: string, expiresAt: string) {

@@ -88,6 +88,8 @@ export type ApiConversation = {
   messages: Array<{ id: string; role: "user" | "assistant"; content: string; createdAt: string; sources?: Array<{ id: string; title: string; detail: string; type: "document" | "audio" | "photo"; excerpt: string; url?: string }>; error?: boolean }>;
 };
 
+export type ApiNotification = { id: string; familyId: string; actorId: string; actorName: string; type: "file" | "event" | "memory" | "member"; title: string; message: string; target: string; read: boolean; createdAt: string };
+
 type ApiErrorBody = { error?: { message?: string } };
 
 let accessToken: string | null = null;
@@ -241,6 +243,11 @@ export const conversationApi = {
   delete(conversationId: string, familyId: string) {
     return request<void>(`/api/conversations/${conversationId}?familyId=${encodeURIComponent(familyId)}`, { method: "DELETE" });
   },
+};
+
+export const notificationApi = {
+  async list() { return request<{ notifications: ApiNotification[]; unreadCount: number }>("/api/notifications"); },
+  markAllRead() { return request<void>("/api/notifications/read-all", { method: "POST" }); },
 };
 
 export const uploadApi = {
