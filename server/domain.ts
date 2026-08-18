@@ -54,7 +54,7 @@ export type Invitation = {
   createdAt: string;
 };
 
-export type FamilyMember = Pick<User, "id" | "name" | "email" | "gender" | "birthday"> & {
+export type FamilyMember = Pick<User, "id" | "name" | "email" | "gender" | "birthday" | "avatarUrl"> & {
   role: Membership["role"];
   relationship: string;
 };

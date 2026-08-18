@@ -27,6 +27,7 @@ export type ApiFamilyMember = {
   email: string;
   gender: string;
   birthday: string;
+  avatarUrl: string;
   role: "owner" | "admin" | "member";
   relationship: string;
 };

@@ -101,7 +101,7 @@ export class MemoryRepository implements KinshipRepository {
     if (!(await this.findFamilyForUser(userId, familyId))) return [];
     return this.memberships.filter((item) => item.familyId === familyId).flatMap((item) => {
       const member = this.users.get(item.userId);
-      return member ? [{ id: member.id, name: member.name, email: member.email, gender: member.gender, birthday: member.birthday, role: item.role, relationship: this.relationships.get(`${userId}:${item.userId}:${familyId}`) ?? item.relationship }] satisfies FamilyMember[] : [];
+      return member ? [{ id: member.id, name: member.name, email: member.email, gender: member.gender, birthday: member.birthday, avatarUrl: member.avatarUrl, role: item.role, relationship: this.relationships.get(`${userId}:${item.userId}:${familyId}`) ?? item.relationship }] satisfies FamilyMember[] : [];
     });
   }
 

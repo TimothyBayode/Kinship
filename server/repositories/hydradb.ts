@@ -94,7 +94,7 @@ export class HydraDbRepository implements KinshipRepository {
 
   async listFamilyMembers(userId: string, familyId: string) {
     if (!(await this.findFamilyForUser(userId, familyId))) return [];
-    const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE f.appId = $familyId RETURN u.appId AS id, u.name AS name, u.email AS email, u.gender AS gender, u.birthday AS birthday, m.role AS role, m.relationship AS relationship", { familyId });
+    const rows = await this.client.query("MATCH (u:User)-[m:MEMBER_OF]->(f:Family) WHERE f.appId = $familyId RETURN u.appId AS id, u.name AS name, u.email AS email, u.gender AS gender, u.birthday AS birthday, u.avatarUrl AS avatarUrl, m.role AS role, m.relationship AS relationship", { familyId });
     return rows as FamilyMember[];
   }
 
