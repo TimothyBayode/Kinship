@@ -37,6 +37,7 @@ export function AppShell() {
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
@@ -88,6 +89,15 @@ export function AppShell() {
     };
   }, [accountOpen]);
 
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const close = (event: PointerEvent) => { if (!notificationMenuRef.current?.contains(event.target as Node)) setNotificationsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setNotificationsOpen(false); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
+  }, [notificationsOpen]);
+
   const logout = async () => {
     try {
       await supabase.auth.signOut();
@@ -132,14 +142,19 @@ export function AppShell() {
             })}
           </nav>
           <div className="flex items-center gap-3">
-            <button
-              className="relative hidden rounded-md p-2 text-muted-foreground hover:bg-muted sm:block"
-              aria-label="Notifications"
-              onClick={() => setNotificationsOpen((open) => !open)}
-            >
-              <Bell className="size-5" />
-              {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-            </button>
+            <div className="relative hidden sm:block" ref={notificationMenuRef}>
+              <button
+                className="relative rounded-md p-2 text-muted-foreground hover:bg-muted"
+                aria-label="Notifications"
+                aria-haspopup="dialog"
+                aria-expanded={notificationsOpen}
+                onClick={() => setNotificationsOpen((open) => !open)}
+              >
+                <Bell className="size-5" />
+                {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+              </button>
+              {notificationsOpen && <NotificationPanel notifications={notifications} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} onReadAll={markAllRead} onOpen={(target) => { setNotificationsOpen(false); navigate(target); }} />}
+            </div>
             <div className="relative" ref={accountMenuRef}>
               <button
                 type="button"
@@ -239,9 +254,6 @@ export function AppShell() {
         </div>
       )}
 
-      {notificationsOpen && <NotificationPanel notifications={notifications} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} onReadAll={markAllRead} onOpen={(target) => { setNotificationsOpen(false); navigate(target); }} />}
-
-
       <main className={pathname === "/ask" ? "mt-4 bg-[#f5f5f2]" : "mx-auto mt-4 max-w-[1500px] px-4 py-8 md:px-8 lg:px-12"}>
         <Outlet />
       </main>
@@ -249,6 +261,6 @@ export function AppShell() {
   );
 }
 
-function NotificationPanel({ notifications, unreadCount, onClose, onReadAll, onOpen }: { notifications: ApiNotification[]; unreadCount: number; onClose: () => void; onReadAll: () => Promise<void>; onOpen: (target: string) => void }) { return <div className="fixed inset-0 z-50 bg-foreground/15 p-4 backdrop-blur-sm" onClick={onClose}><aside className="ml-auto mt-14 flex max-h-[min(680px,calc(100vh-5rem))] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-foreground/5 px-5 py-4"><div><h2 className="text-lg font-semibold">Notifications</h2><p className="text-xs text-muted-foreground">{unreadCount} unread</p></div><div className="flex items-center gap-2">{unreadCount > 0 && <button type="button" onClick={() => void onReadAll()} className="rounded-md px-3 py-2 text-xs font-bold text-primary hover:bg-primary/5">Mark all as read</button>}<button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-[#f5f5f2]"><X className="size-4" /></button></div></div><div className="min-h-0 overflow-y-auto">{notifications.length ? notifications.map((item) => <button type="button" key={item.id} onClick={() => onOpen(item.target)} className={`flex w-full gap-3 border-b border-foreground/5 px-5 py-4 text-left hover:bg-primary/[.03] ${item.read ? "" : "bg-primary/[.05]"}`}><span className={`mt-1 size-2 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`} /><div className="min-w-0"><div className="flex items-start justify-between gap-3"><p className="font-semibold">{item.title}</p><span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(item.createdAt)}</span></div><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.message}</p></div></button>) : <div className="grid min-h-56 place-items-center p-6 text-center"><div><Bell className="mx-auto size-7 text-primary/50" /><p className="mt-3 font-semibold">No notifications yet</p><p className="mt-1 text-sm text-muted-foreground">Family activity will appear here.</p></div></div>}</div></aside></div>; }
+function NotificationPanel({ notifications, unreadCount, onClose, onReadAll, onOpen }: { notifications: ApiNotification[]; unreadCount: number; onClose: () => void; onReadAll: () => Promise<void>; onOpen: (target: string) => void }) { return <aside className="absolute right-0 top-full z-50 mt-3 flex max-h-[min(680px,calc(100vh-6rem))] w-[min(92vw,420px)] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" role="dialog" aria-label="Notifications"><div className="flex items-center justify-between border-b border-foreground/5 px-5 py-4"><div><h2 className="text-lg font-semibold">Notifications</h2><p className="text-xs text-muted-foreground">{unreadCount} unread</p></div><div className="flex items-center gap-2">{unreadCount > 0 && <button type="button" onClick={() => void onReadAll()} className="rounded-md px-3 py-2 text-xs font-bold text-primary hover:bg-primary/5">Mark all as read</button>}<button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-[#f5f5f2]"><X className="size-4" /></button></div></div><div className="min-h-0 overflow-y-auto">{notifications.length ? notifications.map((item) => <button type="button" key={item.id} onClick={() => onOpen(item.target)} className={`flex w-full gap-3 border-b border-foreground/5 px-5 py-4 text-left hover:bg-primary/[.03] ${item.read ? "" : "bg-primary/[.05]"}`}><span className={`mt-1 size-2 shrink-0 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`} /><div className="min-w-0"><div className="flex items-start justify-between gap-3"><p className="font-semibold">{item.title}</p><span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(item.createdAt)}</span></div><p className="mt-1 text-sm leading-6 text-muted-foreground">{item.message}</p></div></button>) : <div className="grid min-h-56 place-items-center p-6 text-center"><div><Bell className="mx-auto size-7 text-primary/50" /><p className="mt-3 font-semibold">No notifications yet</p><p className="mt-1 text-sm text-muted-foreground">Family activity will appear here.</p></div></div>}</div></aside>; }
 
 function relativeTime(value: string) { const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000)); if (seconds < 60) return "now"; const minutes = Math.floor(seconds / 60); if (minutes < 60) return `${minutes}m`; const hours = Math.floor(minutes / 60); if (hours < 24) return `${hours}h`; return `${Math.floor(hours / 24)}d`; }
