@@ -2,8 +2,6 @@ import { Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 
-import { initials } from "@/lib/types";
-
 export function Logo() {
   return (
     <Link
@@ -39,7 +37,7 @@ export function Avatar({
     <span
       className={`${size} grid place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground`}
     >
-      {initials(name)}
+      {name.trim().charAt(0).toUpperCase() || "?"}
     </span>
   );
 }

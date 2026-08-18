@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Mail, Plus, Search, X } from "lucide-react";
+import { Check, Copy, Mail, Plus, Search, X, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Avatar, Button, SectionTitle, SelectMenu } from "@/components/kinship-ui";
 import { authApi, familyApi, invitationApi, type ApiFamily, type ApiFamilyMember } from "@/lib/api";
@@ -14,6 +14,7 @@ export function FamilyView() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const family = families[0];
   const filtered = useMemo(() => members.filter((member) => member.name.toLowerCase().includes(query.toLowerCase())), [members, query]);
 
@@ -43,12 +44,12 @@ export function FamilyView() {
     window.setTimeout(() => setCopied(false), 1_500);
   };
 
-  const title = <span className="flex flex-wrap items-center gap-3"><span>{family?.name ?? "Your Family"}</span>{family?.inviteCode && <button type="button" onClick={copyCode} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary/10 px-3 font-mono text-sm font-bold tracking-[.12em] text-primary" title="Copy family invite code">{family.inviteCode}{copied ? <Check className="size-4" /> : <Copy className="size-4" />}</button>}</span>;
+  const title = <span className="flex flex-wrap items-center gap-3"><span>{family?.name ?? "Your Family"}</span>{family?.inviteCode && <button type="button" onClick={copyCode} className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary/10 px-2 font-mono text-[10px] font-bold tracking-[.08em] text-primary" title="Copy family invite code">{family.inviteCode}{copied ? <Check className="size-3" /> : <Copy className="size-3" />}</button>}</span>;
 
   return <section>
-    <SectionTitle title={title}><div className="flex flex-wrap gap-2">{family && ["owner", "admin"].includes(family.role) && <Button primary onClick={() => setInviteOpen(true)}><Plus className="size-4" />Invite member</Button>}<div className="surface flex items-center gap-2 rounded-md px-4 py-3 text-muted-foreground"><Search className="size-4" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search members" className="w-48 bg-transparent text-sm outline-none" /></div></div></SectionTitle>
+    <SectionTitle title={title}><div className="flex flex-wrap gap-2">{family && <Button primary onClick={() => setInviteOpen(true)}><Plus className="size-4" />Add Relative</Button>}<Button onClick={() => setZoom((current) => Math.max(.7, current - .1))}><ZoomOut className="size-4" /></Button><Button onClick={() => setZoom((current) => Math.min(1.3, current + .1))}><ZoomIn className="size-4" /></Button><div className="surface flex items-center gap-2 rounded-md px-4 py-3 text-muted-foreground"><Search className="size-4" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search members" className="w-48 bg-transparent text-sm outline-none" /></div></div></SectionTitle>
     {error && <p role="alert" className="mt-5 text-sm text-destructive">{error}</p>}
-    <FamilyTree members={members} currentUserId={currentUserId} />
+    <FamilyTree members={members} currentUserId={currentUserId} zoom={zoom} />
     <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {filtered.map((member) => <article key={member.id} className="surface flex items-center gap-4 rounded-2xl p-5"><Avatar name={member.name} size="size-14" /><div className="min-w-0 flex-1"><p className="truncate font-semibold">{member.name}</p><p className="truncate text-sm text-muted-foreground">{member.email}</p>{member.id === currentUserId ? <div className="mt-3 flex h-14 items-center rounded-md bg-[#f5f5f2] px-4 text-sm font-semibold text-primary">You</div> : <SelectMenu value={member.relationship || ""} options={relationshipOptions} placeholder="Choose relationship" onChange={(value) => void updateRelationship(member.id, value)} className="mt-3" />}</div><span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">{member.role === "owner" ? "Steward" : member.role}</span></article>)}
       {!filtered.length && <div className="surface rounded-2xl p-8 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">No family members found.</div>}
@@ -56,11 +57,11 @@ export function FamilyView() {
   </section>;
 }
 
-function FamilyTree({ members, currentUserId }: { members: ApiFamilyMember[]; currentUserId: string }) {
+function FamilyTree({ members, currentUserId, zoom }: { members: ApiFamilyMember[]; currentUserId: string; zoom: number }) {
   const root = members.find((member) => member.id === currentUserId) ?? members.find((member) => member.role === "owner") ?? members[0];
   const connected = members.filter((member) => member.id !== root?.id && member.relationship);
   if (!root || !connected.length) return null;
-  return <section className="grid-paper surface relative mt-8 overflow-auto rounded-2xl p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-primary">Family tree</p><p className="mt-1 text-sm text-muted-foreground">Confirmed relationships appear here as the family grows.</p></div></div><div className="relative mx-auto min-h-72 min-w-[720px] p-4"><svg className="absolute inset-0 size-full" viewBox="0 0 720 280" preserveAspectRatio="none" aria-hidden="true"><g stroke="var(--primary)" strokeOpacity=".45" strokeWidth="2"><path d={`M360 118 ${connected.map((_, index) => `L${100 + index * Math.min(520 / Math.max(connected.length - 1, 1), 150)} 230`).join(" ")}`} /></g></svg><div className="absolute left-1/2 top-0 -translate-x-1/2"><TreeNode member={root} you={root.id === currentUserId} /></div><div className="absolute inset-x-4 bottom-0 flex justify-center gap-5">{connected.map((member) => <TreeNode key={member.id} member={member} />)}</div></div></section>;
+  return <section className="grid-paper surface relative mt-8 overflow-auto rounded-2xl p-6"><div className="mb-5 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-primary">Family tree</p><p className="mt-1 text-sm text-muted-foreground">Confirmed relationships appear here as the family grows.</p></div><span className="rounded-md bg-[#f5f5f2] px-3 py-1.5 text-sm font-semibold text-muted-foreground">{Math.round(zoom * 100)}%</span></div><div className="relative mx-auto min-h-72 min-w-[720px] p-4" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}><svg className="absolute inset-0 size-full" viewBox="0 0 720 280" preserveAspectRatio="none" aria-hidden="true"><g stroke="var(--primary)" strokeOpacity=".45" strokeWidth="2"><path d={`M360 118 ${connected.map((_, index) => `L${100 + index * Math.min(520 / Math.max(connected.length - 1, 1), 150)} 230`).join(" ")}`} /></g></svg><div className="absolute left-1/2 top-0 -translate-x-1/2"><TreeNode member={root} you={root.id === currentUserId} /></div><div className="absolute inset-x-4 bottom-0 flex justify-center gap-5">{connected.map((member) => <TreeNode key={member.id} member={member} />)}</div></div></section>;
 }
 
 function TreeNode({ member, you = false }: { member: ApiFamilyMember; you?: boolean }) { return <div className="relative z-10 flex w-36 flex-col items-center rounded-lg bg-[#f5f5f2] p-3 text-center shadow-[0_4px_18px_rgba(23,21,29,0.06)]"><Avatar name={member.name} size="size-12" /><p className="mt-2 truncate max-w-full text-xs font-semibold">{member.name}</p><span className="mt-1 max-w-full truncate text-[10px] text-primary">{you ? "You" : member.relationship}</span></div>; }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, Check, ChevronDown, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown } from "lucide-react";
 
-import { Avatar, Button, SectionTitle } from "@/components/kinship-ui";
+import { Avatar, SectionTitle } from "@/components/kinship-ui";
 import { activities, events, family, imageRefs, members } from "@/lib/types";
 
 const activityFilters = ["Recent", "Most Relevant", "All"] as const;
@@ -80,10 +80,6 @@ export function ActivityView() {
               </div>
             )}
           </div>
-          <Button primary>
-            <Plus className="size-4" />
-            Add Relative
-          </Button>
         </div>
       </SectionTitle>
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -95,14 +91,7 @@ export function ActivityView() {
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <Avatar
-                    name={activity.author}
-                    src={
-                      activity.id === "a1"
-                        ? "https://i.pravatar.cc/100?img=45"
-                        : undefined
-                    }
-                  />
+                  <Avatar name={activity.author} />
                   <div>
                     <p className="font-semibold">{activity.author}</p>
                     <p className="text-sm text-muted-foreground">

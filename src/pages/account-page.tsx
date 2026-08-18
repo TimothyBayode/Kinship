@@ -3,7 +3,6 @@ import { Camera, Save } from "lucide-react";
 
 import { Avatar, Button, SectionTitle } from "@/components/kinship-ui";
 import { authApi, profileApi, uploadApi, type ApiUser } from "@/lib/api";
-import { user as demoUser } from "@/lib/types";
 
 const fieldClass = "mt-2 h-14 w-full rounded-md border-0 bg-[#f5f5f2] px-4 outline-none focus:border-0 focus:outline-none focus:ring-0";
 
@@ -62,7 +61,7 @@ export default function AccountPage() {
     <SectionTitle title="Account Settings" />
     <div className="mt-8 max-w-2xl rounded-2xl bg-white p-6 sm:p-8">
       <div className="flex flex-wrap items-center gap-5">
-        <Avatar src={avatarUrl || demoUser.avatar} name={name || user.name} size="size-24" />
+        <Avatar src={avatarUrl || undefined} name={name || user.name} size="size-24" />
         <div>
           <input ref={imageInput} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file); event.target.value = ""; }} />
           <Button disabled={uploading} onClick={() => imageInput.current?.click()}><Camera className="size-4" />{uploading ? "Uploading..." : "Change profile picture"}</Button>

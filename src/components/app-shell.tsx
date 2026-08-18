@@ -18,7 +18,6 @@ import {
 import { Avatar, Logo } from "@/components/kinship-ui";
 import { authApi, setAccessToken, type ApiUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
-import { user as demoUser } from "@/lib/types";
 
 const nav = [
   { label: "Activity", icon: LayoutDashboard, href: "/activity" },
@@ -135,7 +134,7 @@ export function AppShell() {
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
               >
-                <Avatar src={user.avatarUrl || demoUser.avatar} name={user.name} />
+                <Avatar src={user.avatarUrl || undefined} name={user.name} />
                 <span className="hidden text-sm font-semibold sm:block">
                   {user.name}
                 </span>
