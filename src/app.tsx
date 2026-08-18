@@ -11,6 +11,7 @@ import HomePage from "@/pages/home-page";
 import MemoriesPage from "@/pages/memories-page";
 import InvitePage from "@/pages/invite-page";
 import OnboardingPage from "@/pages/onboarding-page";
+import AccountPage from "@/pages/account-page";
 
 const router = createBrowserRouter([
   { path: "/", element: <HomePage /> },
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/activity", element: <ActivityPage /> },
       { path: "/onboarding", element: <OnboardingPage /> },
+      { path: "/account", element: <AccountPage /> },
       { path: "/invite", element: <InvitePage /> },
       { path: "/family", element: <FamilyPage /> },
       { path: "/memories", element: <MemoriesPage /> },

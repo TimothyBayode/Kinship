@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { ArrowRight, MessageCircle, Sparkles, Users } from "lucide-react";
 
 import { Logo } from "@/components/kinship-ui";
-import { imageRefs } from "@/lib/types";
 
 const linkButton =
   "inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold";
@@ -66,8 +65,8 @@ export default function HomePage() {
           </div>
           <div className="relative overflow-hidden rounded-[2rem] border bg-secondary shadow-2xl shadow-primary/10">
             <img
-              src={imageRefs.landing}
-              alt="Kinship family memories product collage"
+               src="/dash.png"
+               alt="Kinship dashboard"
               className="h-[420px] w-full object-cover object-top sm:h-[560px]"
             />
           </div>
@@ -134,8 +133,8 @@ export default function HomePage() {
           </div>
           <div className="overflow-hidden rounded-3xl">
             <img
-              src={imageRefs.overview}
-              alt="Kinship overview activity feed"
+               src="/dashn.png"
+               alt="Kinship family archive dashboard"
               className="w-full"
             />
           </div>
