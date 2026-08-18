@@ -157,15 +157,15 @@ export function AppShell() {
                     <Bell className="size-4" />
                     Notifications
                   </button>
-                  <button
-                    type="button"
+                  <Link
+                    to="/account"
                     className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold hover:bg-primary/5"
                     onClick={() => setAccountOpen(false)}
                     role="menuitem"
                   >
                     <Settings className="size-4" />
                     Account Settings
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-destructive hover:bg-destructive/5"
