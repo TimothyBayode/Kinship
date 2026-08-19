@@ -252,7 +252,7 @@ export const notificationApi = {
 
 export const uploadApi = {
   async upload(file: File) {
-    return (await this.uploadWithMetadata(file)).url;
+    return (await uploadApi.uploadWithMetadata(file)).url;
   },
   async uploadWithMetadata(file: File, onProgress?: (percent: number) => void) {
     const config = await request<{ uploadUrl: string; uploadPreset: string }>("/api/uploads/cloudinary-config");
