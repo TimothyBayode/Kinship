@@ -24,24 +24,7 @@ See [architecture.md](architecture.md) for request flows, the graph model, trust
 
 Some screens still mix persisted records with demonstration content. In particular, the activity feed is static demonstration data, and the events and files views append demonstration records to live API records. The family tree presentation is not yet a general graph traversal/editor. These limitations are important when evaluating the current build.
 
-## Hackathon Track 03 positioning
-
-Kinship is positioned for Track 03 as a product whose central data problem is graph-shaped, contextual, and durable: a family archive is not merely a folder of uploads. People belong to families, people describe relationships from their own perspective, memories contain photos, invitations connect future members to a family, and all of those records form the context used to answer questions.
-
-HydraDB OSS is not included as a logo-only integration or replaceable demo lookup. It is the primary application and context database in the Docker/Codespaces deployment:
-
-- Every synchronized user profile is written to HydraDB.
-- Family creation writes a `Family` vertex and a `MEMBER_OF` edge from its owner.
-- Joining a family creates another membership edge; relationship editing creates or updates a `RELATED_TO` edge.
-- Memories create `Memory` and `Photo` vertices plus `CONTAINS` edges.
-- Events, file metadata, invitations, retrieval chunks, and conversations are HydraDB vertices.
-- Authorization checks traverse or query the user-to-family membership graph before family data is read or changed.
-- Ask Kinship reads family-scoped records and context chunks from HydraDB before Gemini receives any archive evidence.
-- HydraDB writes its graph records, WAL, manifests, and indexes to the configured Cloudflare R2 bucket. Local container storage is a disposable cache, not the durable source of truth.
-
-This makes the Track 03 claim concrete: the OSS database owns product state, graph relationships, retrieval context, and durable continuity across compute replacement.
-
-## Exactly how HydraDB powers Kinship
+## How HydraDB powers Kinship
 
 `server/repository.ts` selects `HydraDbRepository` when `DATA_PROVIDER=hydradb`. The adapter in `server/repositories/hydradb.ts` implements the complete `KinshipRepository` interface. It issues parameterized OpenCypher statements through `HydraDbClient`; there is no Supabase database fallback and no hosted HydraDB SDK.
 
@@ -220,8 +203,8 @@ This flow is for Linux, macOS, or Windows with Docker Desktop, Docker Compose v2
 1. Clone the repository and install dependencies:
 
 ```bash
-git clone YOUR_REPOSITORY_URL kinship
-cd kinship
+git clone https://github.com/TimothyBayode/Kinship/
+cd Kinship
 npm ci
 ```
 
@@ -326,13 +309,11 @@ Kinship uses [HydraDB](https://github.com/hydra-db/hydradb), an object-store-nat
 
 Current technical limitations include:
 
-- No real HydraDB integration test is included in the test suite.
 - Retrieval is deterministic lexical ranking over recent family-scoped records, not semantic/vector retrieval.
 - Source chunks contain submitted metadata and descriptions; Kinship does not extract text from uploaded file bytes or transcribe audio/video.
-- Conversations and photo URL arrays are JSON-encoded properties on vertices rather than separate message graphs or fully normalized photo reads.
-- Several user interface views include demonstration records, and the activity feed is not API-backed.
+- Some user interface views include demonstration records, and the activity feed is not API-backed.
 - The Google button is displayed but does not currently start an OAuth flow.
 - Cloudinary uploads are unsigned and occur from the browser; preset restrictions are an essential security control.
-- Invitation codes are bearer capabilities. Email-bound invitations add an address check, while general family invite codes do not expire in the current code.
+- Invitation codes are bearer capabilities. Email-bound invitations triggers domain name verification from Resend, while general family invite codes do not expire in the current code.
 - The API's legacy cookie-auth routes remain implemented, but the current browser uses Supabase Auth.
 - The Compose topology is a single HydraDB data node without a separately deployed indexer or high-availability arrangement.
