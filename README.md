@@ -173,37 +173,114 @@ RESEND_FROM_EMAIL=
 
 `R2_ACCOUNT_ID` is documented for credential management but is not directly consumed by `compose.yaml`; `R2_ENDPOINT` carries the account-specific S3 endpoint. The Compose stack maps R2 values to HydraDB's `AWS_*` variables because R2 implements the S3 API.
 
-## Codespaces and Docker Compose
+## Deployment
 
-The repository does not currently contain a `.devcontainer` definition. Open it in a Codespace with Docker support, configure Codespaces secrets for the required values, and run from the repository root:
+Kinship's development deployment runs three processes: HydraDB OSS in Docker, the Fastify API in Docker, and Vite on the host. The API connects to HydraDB over the private Compose network at `http://hydradb:8443`; Vite proxies browser `/api` requests to Fastify on port `3001`. HydraDB's HTTP, Bolt, and admin ports are not published to the host.
+
+### Deploy with Docker in GitHub Codespaces
+
+1. Open the repository in a Codespace with Docker and Docker Compose v2 support.
+2. Add the repository's Codespaces secrets. Use the names in the environment-variable section above. At minimum, provide the HydraDB auth token, R2 credentials, Supabase URL and keys, `PASSWORD_PEPPER`, Cloudinary values, and Gemini key.
+3. From the repository root, install Node dependencies:
 
 ```bash
 npm ci
+```
+
+4. Start HydraDB and the API with the checked-in bootstrap script:
+
+```bash
 bash scripts/start-codespace.sh
-npm run dev
 ```
 
-The script:
+The script derives the Codespaces frontend origin from `CODESPACE_NAME` and `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN`, writes `HYDRADB_AUTH_TOKEN` to the ignored `.codespaces/hydradb-token` file, and runs `docker compose up -d --build --force-recreate`.
 
-- Requires HydraDB, R2, Supabase, and pepper values.
-- Derives `APP_ORIGIN` from the Codespace name and forwarding domain when available.
-- writes the HydraDB bearer token to the ignored `.codespaces/hydradb-token` file with restrictive permissions.
-- Builds and starts `hydradb` and `api` through `docker compose`.
-
-Vite runs outside Compose on port `5173`; the API is bound to host loopback port `3001`. Vite proxies browser `/api` requests to the API. In Codespaces, make port `5173` visible at the same URL represented by `APP_ORIGIN`. HydraDB's HTTP, Bolt, and admin ports are exposed only to the Compose network, not published on the host.
-
-For the same stack outside Codespaces, set `APP_ORIGIN` to the exact frontend origin, ensure all required variables are exported or available through `.env`, then run:
+5. Start Vite in a second terminal:
 
 ```bash
-mkdir -p .codespaces
-umask 077
-printf '%s\n' "$HYDRADB_AUTH_TOKEN" > .codespaces/hydradb-token
-docker compose up -d --build
-npm ci
 npm run dev
 ```
 
-Use `docker compose ps` to inspect the two services and request `http://127.0.0.1:3001/api/health` to verify that the API can reach HydraDB. A healthy response reports `dataProvider: "hydradb"`.
+6. In the Codespaces Ports panel, forward port `5173` and open the generated HTTPS URL. It must match the `APP_ORIGIN` printed by `start-codespace.sh`.
+7. Verify the API and both containers:
+
+```bash
+docker compose ps
+curl http://127.0.0.1:3001/api/health
+```
+
+The health response must report `"dataProvider":"hydradb"`. The API is ready when HydraDB and the API containers are running and Vite is serving port `5173`.
+
+To replace a Codespaces secret, update it in the repository's **Settings -> Secrets and variables -> Codespaces**, restart the Codespace, and run the bootstrap script again. Do not put secret values in the repository or commit `.env` files.
+
+### Deploy with Docker on a local machine
+
+This flow is for Linux, macOS, or Windows with Docker Desktop, Docker Compose v2, Node.js 22+, and npm 10+ installed. It uses the same HydraDB OSS and API containers but does not depend on Codespaces variables.
+
+1. Clone the repository and install dependencies:
+
+```bash
+git clone YOUR_REPOSITORY_URL kinship
+cd kinship
+npm ci
+```
+
+2. Create the local environment file:
+
+```bash
+cp .env.example .env
+```
+
+3. Open `.env` and replace every placeholder. For local browser development, use these values:
+
+```dotenv
+NODE_ENV=development
+API_HOST=127.0.0.1
+API_PORT=3001
+APP_ORIGIN=http://127.0.0.1:5173
+DATA_PROVIDER=hydradb
+HYDRADB_HTTP_URL=http://127.0.0.1:8443
+```
+
+Also replace the empty values for `HYDRADB_AUTH_TOKEN`, `PASSWORD_PEPPER`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`, and `GEMINI_API_KEY`. Keep `HYDRADB_NAMESPACE=kinship`, `HYDRADB_GRAPH_ID=kinship`, and `HYDRADB_CELL_ID=cell-0` unless your HydraDB setup uses different identifiers.
+
+4. Load the `.env` values into the shell for the bootstrap script. If a value contains spaces or shell punctuation, quote that value in `.env` first:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+5. Start HydraDB and the Fastify API:
+
+```bash
+bash scripts/start-codespace.sh
+```
+
+The script name is retained for compatibility; on a local machine it only creates the ignored token file and starts Docker Compose. It does not require Codespaces when `APP_ORIGIN` is already set.
+
+6. Start the Vite frontend:
+
+```bash
+npm run dev
+```
+
+Open `http://127.0.0.1:5173` and verify the backend:
+
+```bash
+docker compose ps
+curl http://127.0.0.1:3001/api/health
+```
+
+For a clean restart without deleting HydraDB data, use:
+
+```bash
+docker compose down
+bash scripts/start-codespace.sh
+```
+
+Do not use `docker compose down -v` unless you intentionally want to remove Docker volumes. HydraDB's durable graph data belongs in the configured R2 bucket, but preserving local volumes avoids unnecessary cache rebuilds.
 
 ## Lightweight local API mode
 
